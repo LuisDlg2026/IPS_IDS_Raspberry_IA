@@ -1,0 +1,8 @@
+\begin{thebibliography}{1}
+\expandafter\ifx\csname natexlab\endcsname\relax\def\natexlab#1{#1}\fi
+
+\bibitem[{Russell \& Norvig(2003)}]{russel03modern}
+{\sc Russell, S.J. \& Norvig, P.} (2003). {\em {Artificial Intelligence: A
+  Modern Approach}\/}. Pearson Education.
+
+\end{thebibliography}

@@ -1,0 +1,229 @@
+%%
+%% This file `tfg-esiiab.sty`
+%%
+%%
+
+\NeedsTeXFormat{LaTeX2e}
+
+\usepackage{epsfig}
+\usepackage[spanish,activeacute]{babel}
+\usepackage[latin1]{inputenc}
+
+
+ \usepackage[ 
+	 plainpages = false, pdfpagelabels,
+                  bookmarks,
+                  bookmarksopen = true,
+                  bookmarksnumbered = true,
+                  linktocpage,
+                  pagebackref,
+                  colorlinks = true,
+                  linkcolor = blue,
+                  urlcolor  = blue,
+                  citecolor = blue,
+                  anchorcolor = green,
+                  hyperindex = true,
+                  hyperfigures
+                  ]{hyperref}
+\usepackage{hyperref}
+ \usepackage[square, sort, numbers, authoryear]{natbib}
+
+
+%Para los márgenes y sangrados
+\usepackage{geometry}
+\geometry{a4paper, left=3.5cm, right=2cm, top=2.5cm, bottom=2.5cm, headsep=1.5cm} %Para margen izquierdo, derecho, inferior y superior.
+
+\def\supervisor #1{\def\argSuper {#1}}
+\def\cosupervisor #1{\def\argCosuper {#1}}
+
+
+\renewcommand{\baselinestretch}{1.25} % Interlineado 1.25
+
+
+%% Redefino la presentación de la fecha
+\newcommand{\fecha}{\ifcase\month\or
+  Enero\or Febrero\or Marzo\or Abril\or Mayo\or Junio\or
+  Julio\or Agosto\or Septiembre\or Octubre\or Noviembre\or
+Diciembre\fi \space de \number\year}
+
+\renewcommand{\maketitle}{\begin{titlepage}%
+  \let\footnotesize\small
+  \let\footnoterule\relax
+  \let \footnote \thanks
+  \null\vfil
+%  \vskip 60\p@
+  \begin{center}%
+    \epsfig{file=logo.eps}
+    \vskip 3em%
+    \textbf{\large UNIVERSIDAD DE CASTILLA-LA MANCHA}%
+    \vskip 1em%
+    \textbf{\large ESCUELA SUPERIOR DE INGENIERÍA INFORMÁTICA}%
+    \vskip 6em%
+    \textbf{\large MÁSTER EN CIBERSEGURIDAD Y SEGURIDAD DE LA INFORMACION}
+    \vskip 1em%
+    \textbf{\large TRABAJO FIN DE MÁSTER}
+     \vskip 1em%
+    \textbf{TECNOLOGIA ESPECIFICA DE XXXXXXXXXXXX}
+    \vskip 3em%
+    {\LARGE \@title \par}%
+    \vskip 3em%
+    {\large
+     \lineskip .75em%
+      \begin{tabular}[t]{c}%
+        \@author
+      \end{tabular}\par}%
+      \vskip 1.5em%
+    \flushright{\large \fecha \par}%       % Set date in \large size.
+  \end{center}\par
+%  \@thanks
+  \vfil\null
+  \end{titlepage}%
+
+  \cleardoublepage
+    \begin{titlepage}%
+      \let\footnotesize\small
+      \let\footnoterule\relax
+      \let \footnote \thanks
+      \null\vfil
+%  \vskip 60\p@
+  \begin{center}%
+    \epsfig{file=logo.eps}
+    \vskip 3em%
+    \textbf{\large UNIVERSIDAD DE CASTILLA-LA MANCHA}%
+    \vskip 1em%
+    \textbf{\large ESCUELA SUPERIOR DE INGENIERÍA INFORMÁTICA}%
+    \vskip 6em%
+    \textbf{\Large Departamento de Sistemas Informáticos}
+    \vskip 3em%
+    \textbf{\large TRABAJO FIN DE MÁSTER}
+    \vskip 1em%
+    %\textbf{TECNOLOGIA ESPECIFICA DE XXXXXXXXXXXX}
+    \vskip 2em%
+    {\LARGE \@title \par}%
+  \end{center}\par%
+    \vskip 3em%
+    {\large
+     \lineskip .75em%
+      \begin{tabular}[t]{ll}%
+        Autor:&\@author\\
+        Directores:& \argSuper \\
+        &\argCosuper \\
+      \end{tabular}\par}%
+      \vskip 1em%
+    \flushright{\large \fecha \par}%       % Set date in \large size.
+  %  \@thanks
+  \vfil\null
+  \end{titlepage}%
+    \cleardoublepage
+  \setcounter{footnote}{0}%
+  \global\let\thanks\relax
+  \global\let\maketitle\relax
+  \global\let\@thanks\@empty
+  \global\let\@author\@empty
+  \global\let\@date\@empty
+  \global\let\@title\@empty
+  \global\let\title\relax
+  \global\let\author\relax
+  \global\let\date\relax
+  \global\let\and\relax
+}
+
+
+
+%
+% Definición del entorno resumen
+%
+
+\newenvironment{resumen}{%
+  \cleardoublepage
+%  \vspace*{5em}%
+  \thispagestyle{empty}
+  \vspace*{1em}%
+  \centerline{\fontfamily{phv}\selectfont\Large Resumen}
+  \vspace*{1em}
+}%
+{\cleardoublepage}
+
+%
+% Definición del entorno agradecimiento
+%
+
+\newenvironment{agradece}{%
+  \cleardoublepage
+%  \vspace*{5em}%
+  \thispagestyle{empty}
+  \vspace*{1em}%
+  \centerline{\fontfamily{phv}\selectfont\Large Agradecimientos}
+  \vspace*{1em}
+}%
+{\cleardoublepage}
+
+%
+% Definición de la cita
+%
+\newenvironment{dedicatoria}{%
+  \cleardoublepage%
+  \thispagestyle{empty}%
+  \begin{flushright}%
+    \em\null\vskip4in
+}%
+{\vfill
+  \end{flushright}
+  \cleardoublepage
+}%
+
+
+%
+% Redefinición de las cabeceras de los capítulos
+%
+%\renewcommand{\@makechapterhead}[1]{%
+%  {\fontsize{20}{24}\selectfont\scshape\@chapapp\space\MakeUppercase\thechapter.\space#1\par\vskip20\p@}}
+
+% 
+% Redefinición de las cabeceras de las secciones
+%
+\let\seccion\section
+\renewcommand{\section}[1]{\seccion{\fontsize{18}{22}{#1}}}
+
+%
+% Redefinición de la frontmatter para incluir romanos en minúscula.
+%
+\renewcommand\frontmatter{%
+  \if@openright
+    \cleardoublepage
+  \else
+    \clearpage
+  \fi
+  \@mainmatterfalse
+  \pagenumbering{roman}}
+
+
+%
+% Deja en sin encabezado ni pié de página las páginas en blanco
+%
+\let\salto\cleardoublepage
+\renewcommand{\cleardoublepage}{\newpage{\pagestyle{empty}\salto}}
+
+
+%
+% Generación de índice general
+%
+\let\indice\tableofcontents
+\renewcommand{\tableofcontents}{\setcounter{tocdepth}{1}\indice\cleardoublepage}
+
+%
+% Generación de la lista de figuras
+%
+\let\figuras\listoffigures
+\renewcommand{\listoffigures}{\addcontentsline{toc}{chapter}{\listfigurename}\figuras%
+\cleardoublepage}
+
+%
+% Generación de la lista de tablas
+%
+\let\tablas\listoftables
+\renewcommand{\listoftables}{\addcontentsline{toc}{chapter}{\listtablename}\tablas%
+\cleardoublepage}
+
+
+
