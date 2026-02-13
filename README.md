@@ -3,9 +3,12 @@
   <h1>Desarrollo de un IDS/IPS con IA para Monitoreo y Protección de Redes Domésticas y PyMEs en Raspberry Pi</h1>
 </div>
 
-**Alumno:** Luis Ignacio de Luna  Gómez
+**Alumno:** Luis Ignacio de Luna  Gómez 
+
 **Máster:** [Máster Universitario en Ciberseguridad y Seguridad de la Información](https://mcsi.uclm.es/)
+
 **Universidad:** Universidad de Castilla-La Mancha  
+
 **Curso Académico:** 2025-2026  
 
 ---
@@ -29,7 +32,7 @@ El objetivo principal es desarrollar una solución de ciberseguridad accesible q
 - Despliegue optimizado en hardware de recursos limitados (Raspberry Pi).
 - Panel de control integral para visualización, gestión de dispositivos y respuesta ante incidentes.
 
-## 🚀 CHerramientas Utilizadas
+## 🚀 Herramientas Utilizadas
 
 Este proyecto integra diversas tecnologías para lograr un ecosistema de seguridad completo en el borde (Edge Computing):
 
@@ -101,12 +104,10 @@ Este es un proyecto académico individual. Sin embargo, sugerencias y comentario
 
 ## ✍️ Autor
 
-h2>📬 <strong>Contacto</strong></h2
+<h2>📬 <strong>Contacto</strong></h2
 
 <ul>
-<li><strong>Email: </strong><a href="mailto:correo@luisgnaciodeluna.com">correo@luisgnaciodeluna.com </a> | <a href="mailto:ldg1008@alu.ubu.es">ldg1008@alu.ubu.es</li></a>
-
-href="mailto:luisignacio.luna1@alu.uclm.es">luisignacio.luna1@alu.uclm.es</li></a>
+<li><strong>Email: </strong><a href="mailto:correo@luisgnaciodeluna.com">correo@luisgnaciodeluna.com </a> |  <a href="mailto:ldg1008@alu.ubu.es">ldg1008@alu.ubu.es</a> | <a href="mailto:luisignacio.luna1@alu.uclm.es">luisignacio.luna1@alu.uclm.es</a></li>
 
  <li><strong>Web: </strong><a href="https://luisignaciodeluna.com">Luisignaciodeluna.com</a></li>
 <li><strong>Linkedin: </strong><a href="https://www.linkedin.com/in/luisignaciodeluna/">Perfil</li>
