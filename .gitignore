@@ -1,2 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Datos grandes (git lfs o ignorar)
+data/raw/
+data/processed/
+*.csv
+*.xlsx
+*.json.large
+
+# Modelos entrenados (demasiado grandes)
+data/models/
+*.pkl
+*.joblib
+*.h5
+*.pth
+*.keras
+
+# Logs
+logs/
+*.log
+
+# Bases de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Temporal
+*.tmp
+*.temp
+*~
+
+# Notas personales (opcional)
+# /notas/
+
+# Archivos sí versionados
 /archivos/
-/docs/
+
