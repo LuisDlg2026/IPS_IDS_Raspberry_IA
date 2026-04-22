@@ -48,6 +48,20 @@ logs/
 *.sqlite
 *.sqlite3
 
+# Office documents
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.odt
+
+# Comprimidos
+*.zip
+*.tar.gz
+*.rar
+
 # Variables de entorno
 .env
 .env.local
