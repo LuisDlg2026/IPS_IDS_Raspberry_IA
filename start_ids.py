@@ -48,11 +48,15 @@ def start_backend():
             
             # 2. Deducir automáticamente la subred asumiendo formato /24
             try:
-                # Intenta obtener la IP actual de la Raspberry, ej: 192.168.0.22
-                local_ip = get_if_addr(iface_name)
+                # Intenta obtener la IP actual de la Raspberry usando un socket (más fiable)
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80)) # IP Externa conocida de Google
+                local_ip = s.getsockname()[0]
+                s.close()
                 default_target = ".".join(local_ip.split(".")[:3]) + ".0/24" 
             except Exception as e:
-                logger.warning(f"No se pudo detectar IP de {iface_name}, usando red por defecto. Error: {e}")
+                logger.warning(f"No se pudo detectar IP fiable, usando red por defecto. Error: {e}")
                 default_target = "192.168.1.0/24"
                 
             target_ip = os.environ.get("IDS_TARGET_SUBNET", default_target)
@@ -60,13 +64,13 @@ def start_backend():
             
             while True:
                 try:
-                    # Usar scapy para enviar ARP requests (requiere root)
+                    # Usar scapy para enviar ARP requests. Forzar la interfaz y aumentar el timeout.
                     arp_request = ARP(pdst=target_ip)
                     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
                     packet = ether/arp_request
                     
-                    # srp envia y recibe en capa 2 (MAC)
-                    result = srp(packet, timeout=5, verbose=0, iface=iface_name)[0]
+                    # srp envia y recibe en capa 2 (MAC). Se envia desde la interfaz especificada
+                    result = srp(packet, timeout=10, verbose=0, iface=iface_name)[0]
                     
                     discovered = 0
                     for sent, received in result:
