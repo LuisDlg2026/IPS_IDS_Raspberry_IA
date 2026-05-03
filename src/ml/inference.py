@@ -144,8 +144,15 @@ class InferenceEngine:
                 except (ValueError, TypeError):
                     vector_52[i] = 0.0
         
-        # 2. Escalar el vector de 52 elementos
-        X_scaled_52 = self._scaler.transform(vector_52.reshape(1, -1))
+        # 2. Escalar el vector de 52 elementos. Convertimos a DataFrame para que scikit-learn no pite sobre nombres faltantes.
+        import pandas as pd
+        X_df_52 = pd.DataFrame([vector_52], columns=self._scaler_features)
+        
+        # Suprimimos los warnings a nivel global para que no inunden el log si el entorno no tiene pandas estricto
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            X_scaled_52 = self._scaler.transform(X_df_52)
         
         # 3. Extraer solo las 36 features seleccionadas del array escalado
         X = np.zeros((1, len(self._selected_features)), dtype=np.float64)
