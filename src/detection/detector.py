@@ -74,6 +74,7 @@ class IDSDetector:
         window_seconds: float = None,
         confidence_threshold: float = None,
         on_alert: Optional[Callable[[Alert], None]] = None,
+        on_flow: Optional[Callable[[str, str], None]] = None,
     ):
         """
         Args:
@@ -82,12 +83,14 @@ class IDSDetector:
             window_seconds: Ventana temporal para agrupar flujos
             confidence_threshold: Umbral mínimo de confianza para alertar
             on_alert: Callback cuando se genera una alerta
+            on_flow: Callback cuando se procesa un flujo normal (para descubrimiento pasivo)
         """
         from src.config import FLOW_WINDOW_SECONDS, CONFIDENCE_THRESHOLD
 
         self._window_seconds = window_seconds or FLOW_WINDOW_SECONDS
         self._confidence_threshold = confidence_threshold or CONFIDENCE_THRESHOLD
         self._on_alert_callback = on_alert
+        self._on_flow_callback = on_flow
 
         # Inicializar componentes del pipeline
         from src.ml.inference import InferenceEngine
@@ -244,6 +247,13 @@ class IDSDetector:
             flow_key = flow_data["flow_key"]
             src_ip = flow_data["src_ip"]
             dst_ip = flow_data["dst_ip"]
+
+            # Descubrimiento pasivo
+            if self._on_flow_callback:
+                try:
+                    self._on_flow_callback(src_ip, dst_ip)
+                except Exception as e:
+                    logger.error(f"Error en callback de flujo: {e}")
 
             # Predicción
             result = self._engine.predict(features)

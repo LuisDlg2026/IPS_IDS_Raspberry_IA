@@ -83,8 +83,21 @@ def start_backend():
         discovery_thread = threading.Thread(target=network_discovery_loop, daemon=True)
         discovery_thread.start()
 
-        # 5. Iniciar el detector pasándole el callback
-        detector = IDSDetector(on_alert=on_alert_detected)
+        # 4.5 Callback de descubrimiento pasivo (Cualquier IP que envíe/reciba tráfico se añade)
+        def on_flow_detected(src_ip, dst_ip):
+            for ip in [src_ip, dst_ip]:
+                if ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172."): # Solo IPs locales
+                    # Añadir a la base de datos de forma pasiva
+                    db.save_device({
+                        "ip": ip,
+                        "mac": "unknown", # MAC se resolverá por ARP en el próximo escaneo
+                        "vendor": "Unknown (Pasivo)",
+                        "is_online": 1,
+                        "risk_level": "low"
+                    })
+
+        # 5. Iniciar el detector pasándole los callbacks
+        detector = IDSDetector(on_alert=on_alert_detected, on_flow=on_flow_detected)
         detector.start()
         
     except Exception as e:
