@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  ids-edge:
+    build: .
+    container_name: edge_ids_ips
+    restart: unless-stopped
+    # MODO HOST: Crítico para que la tarjeta detecte el tráfico real de la Raspberry y Streamlit se sirva en la IP real.
+    network_mode: "host"
+    # Privilegios necesarios para sniffear paquetes en Linux sin hacer el contenedor privilegiado entero
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      # Persistencia de la base de datos (se guardará en la carpeta local data/)
+      - ./data:/app/data
+    environment:
+      - IDS_LOG_LEVEL=INFO
+      - IDS_CAPTURE_IFACE=eth0
+      - IDS_MODEL=random_forest
