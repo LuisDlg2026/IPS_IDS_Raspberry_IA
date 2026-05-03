@@ -139,6 +139,7 @@ class PacketCapture:
                 filter=self._bpf_filter,
                 store=False,  # No almacenar en memoria (eficiente)
                 stop_filter=lambda _: self._stop_event.is_set(),
+                promisc=True  # Forzar modo promiscuo para esuchar a terceros
             )
 
         except PermissionError:
