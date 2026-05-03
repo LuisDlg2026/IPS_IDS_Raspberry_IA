@@ -66,7 +66,29 @@ def start_backend():
                 try:
                     discovered_devices = {} # ip -> mac
                     
-                    # 1. Intentar recolección pasiva desde la caché ARP del sistema (Infalible en Linux/Docker host_mode)
+                    # 0. Añadir la(s) propia(s) IP(s) de la Raspberry Pi al mapa
+                    try:
+                        import socket
+                        # Obtenemos el hostname local y su IP
+                        host_name = socket.gethostname()
+                        
+                        s_local = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        s_local.connect(("8.8.8.8", 80))
+                        local_ip = s_local.getsockname()[0]
+                        s_local.close()
+                        
+                        db.save_device({
+                            "ip": local_ip,
+                            "mac": "localhost",
+                            "vendor": "Raspberry Pi (Host IDS)",
+                            "is_online": 1,
+                            "risk_level": "low"
+                        })
+                    except Exception as e:
+                        pass
+                        
+                    # 1. Intentar recolección pasiva desde la caché ARP del sistema
+
                     if os.path.exists('/proc/net/arp'):
                         with open('/proc/net/arp', 'r') as f:
                             for line in f.readlines()[1:]:
