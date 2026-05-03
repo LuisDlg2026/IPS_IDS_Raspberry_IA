@@ -1,7 +1,13 @@
 import streamlit as st
+import time
 from src.dashboard.utils.data_loader import load_devices
+from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Inventario - IPS/IDS", page_icon="📱", layout="wide")
+
+# Toggle de Auto-Refresco
+st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
 st.title("📱 Inventario de Dispositivos")
 st.markdown("Lista de todo el hardware detectado en la red mediante el descubrimiento activo y pasivo.")
@@ -85,3 +91,8 @@ else:
                 get_db().update_device_label(selected_ip, new_hostname, new_notes)
                 st.success(f"Dispositivo {selected_ip} guardado exitosamente. Recargando tabla...")
                 st.rerun()
+
+# -- Auto-Refresh --
+if auto_refresh:
+    time.sleep(DASHBOARD_REFRESH_RATE)
+    st.rerun()

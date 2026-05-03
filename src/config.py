@@ -59,6 +59,7 @@ CONFIDENCE_THRESHOLD = 0.5
 # ─── Dashboard ──────────────────────────────────────────────────
 DASHBOARD_PORT = 8501
 DASHBOARD_HOST = "0.0.0.0"
+DASHBOARD_REFRESH_RATE = int(os.environ.get("IDS_DASHBOARD_REFRESH", 10))  # Segundos para refresco automático
 
 # ─── Severidad de ataques ───────────────────────────────────────
 ATTACK_SEVERITY = {

@@ -1,8 +1,14 @@
 import streamlit as st
 import pandas as pd
+import time
 from src.dashboard.utils.data_loader import load_alerts
+from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Alertas - IPS/IDS", page_icon="🚨", layout="wide")
+
+# Toggle de Auto-Refresco
+st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
 st.title("🚨 Historial de Alertas de Seguridad")
 st.markdown("Registro de ataques detectados por el modelo ML y vulnerabilidades encontradas por la auditoría.")
@@ -49,3 +55,8 @@ else:
     )
 
     st.info("Tip: Usa la opción 'Descargar como CSV' en la parte superior derecha de la tabla para exportar los datos.")
+
+# -- Auto-Refresh --
+if auto_refresh:
+    time.sleep(DASHBOARD_REFRESH_RATE)
+    st.rerun()

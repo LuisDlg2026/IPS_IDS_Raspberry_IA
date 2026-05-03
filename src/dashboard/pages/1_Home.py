@@ -1,15 +1,21 @@
 import streamlit as st
 import plotly.express as px
 from src.dashboard.utils.data_loader import load_alert_summary, load_network_stats
+from src.config import DASHBOARD_REFRESH_RATE
+import time
 
 st.set_page_config(page_title="Home - IPS/IDS", page_icon="🏠", layout="wide")
+
+# Toggle de Auto-Refresco en el sidebar (configurable desde config)
+st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
 col_title, col_btn = st.columns([4, 1])
 with col_title:
     st.title("🏠 Estado General del Sistema")
 with col_btn:
     st.write("") # Espaciado
-    if st.button("🔄 Actualizar Datos", use_container_width=True):
+    if st.button("🔄 Actualizar Datos"):
         st.rerun()
 
 # Cargar datos
@@ -69,3 +75,8 @@ with col_chart2:
         st.plotly_chart(fig_types, use_container_width=True)
     else:
         st.success("No hay amenazas registradas.")
+
+# -- Auto-Refresh --
+if auto_refresh:
+    time.sleep(DASHBOARD_REFRESH_RATE)
+    st.rerun()
