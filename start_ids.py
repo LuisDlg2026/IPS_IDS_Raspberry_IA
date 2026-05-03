@@ -51,8 +51,12 @@ def start_backend():
                     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
                     packet = ether/arp_request
                     
+                    # Obligar a usar la interfaz real de la Raspberry Pi
+                    # Si no lo indicamos, Docker podría enviarlo por la red virtual interna 'docker0'
+                    iface_name = os.environ.get("IDS_CAPTURE_IFACE", "eth0")
+                    
                     # srp envia y recibe en capa 2 (MAC)
-                    result = srp(packet, timeout=3, verbose=0)[0]
+                    result = srp(packet, timeout=5, verbose=0, iface=iface_name)[0]
                     
                     discovered = 0
                     for sent, received in result:
