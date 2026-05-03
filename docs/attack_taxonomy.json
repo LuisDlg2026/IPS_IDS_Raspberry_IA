@@ -1,0 +1,115 @@
+{
+  "DoS/DDoS": {
+    "ataques": [
+      "DDoS_UDP",
+      "DDoS_ICMP",
+      "DDoS_TCP",
+      "DDoS_HTTP"
+    ],
+    "descripcion": "Inundación de tráfico para denegar servicio a dispositivos IoT/IIoT edge",
+    "mitre_ids": [
+      "T1498",
+      "T1499"
+    ],
+    "mitre_names": [
+      "Network Denial of Service",
+      "Endpoint Denial of Service"
+    ],
+    "protocolos_afectados": [
+      "UDP",
+      "ICMP",
+      "TCP",
+      "HTTP"
+    ],
+    "impacto": "Indisponibilidad de servicios IoT críticos"
+  },
+  "Information Gathering": {
+    "ataques": [
+      "Port_Scanning",
+      "OS_Fingerprinting",
+      "Vulnerability_Scanner"
+    ],
+    "descripcion": "Reconocimiento activo: escaneo de puertos, detección de SO y vulnerabilidades",
+    "mitre_ids": [
+      "T1046",
+      "T1592",
+      "T1595"
+    ],
+    "mitre_names": [
+      "Network Service Scanning",
+      "Gather Victim Host Info",
+      "Active Scanning"
+    ],
+    "protocolos_afectados": [
+      "TCP",
+      "UDP",
+      "ICMP"
+    ],
+    "impacto": "Obtención de información para ataques posteriores"
+  },
+  "Man-in-the-Middle": {
+    "ataques": [
+      "MITM",
+      "DNS_Spoofing"
+    ],
+    "descripcion": "Interceptación y manipulación de comunicaciones entre dispositivos",
+    "mitre_ids": [
+      "T1557",
+      "T1557.002"
+    ],
+    "mitre_names": [
+      "Adversary-in-the-Middle",
+      "ARP Cache Poisoning"
+    ],
+    "protocolos_afectados": [
+      "ARP",
+      "DNS"
+    ],
+    "impacto": "Interceptación de datos sensibles, redirección de tráfico"
+  },
+  "Injection": {
+    "ataques": [
+      "SQL_Injection",
+      "XSS",
+      "Uploading_Attack"
+    ],
+    "descripcion": "Inyección de código/comandos maliciosos en aplicaciones IoT",
+    "mitre_ids": [
+      "T1190",
+      "T1059"
+    ],
+    "mitre_names": [
+      "Exploit Public-Facing Application",
+      "Command and Scripting Interpreter"
+    ],
+    "protocolos_afectados": [
+      "HTTP",
+      "HTTPS"
+    ],
+    "impacto": "Ejecución remota de código, robo de datos"
+  },
+  "Malware": {
+    "ataques": [
+      "Backdoor",
+      "Ransomware",
+      "Password"
+    ],
+    "descripcion": "Software malicioso: puertas traseras, cifrado de datos, fuerza bruta",
+    "mitre_ids": [
+      "T1059.004",
+      "T1486",
+      "T1110"
+    ],
+    "mitre_names": [
+      "Unix Shell (Backdoor)",
+      "Data Encrypted for Impact",
+      "Brute Force"
+    ],
+    "protocolos_afectados": [
+      "TCP",
+      "HTTP",
+      "SSH"
+    ],
+    "impacto": "Control remoto, extorsión, acceso no autorizado"
+  }
+}
