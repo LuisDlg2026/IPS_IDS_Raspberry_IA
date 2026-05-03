@@ -64,7 +64,19 @@ def start_backend():
             
             while True:
                 try:
-                    # Usar scapy para enviar ARP requests. Forzar la interfaz y aumentar el timeout.
+                    discovered_devices = {} # ip -> mac
+                    
+                    # 1. Intentar recolección pasiva desde la caché ARP del sistema (Infalible en Linux/Docker host_mode)
+                    if os.path.exists('/proc/net/arp'):
+                        with open('/proc/net/arp', 'r') as f:
+                            for line in f.readlines()[1:]:
+                                parts = line.split()
+                                if len(parts) >= 4:
+                                    ip, hw_type, flags, mac = parts[:4]
+                                    if mac != "00:00:00:00:00:00" and not ip.startswith("169.254"):
+                                        discovered_devices[ip] = mac
+                    
+                    # 2. Usar scapy para enviar ARP requests (complementario)
                     arp_request = ARP(pdst=target_ip)
                     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
                     packet = ether/arp_request
@@ -72,11 +84,12 @@ def start_backend():
                     # srp envia y recibe en capa 2 (MAC). Se envia desde la interfaz especificada
                     result = srp(packet, timeout=10, verbose=0, iface=iface_name)[0]
                     
-                    discovered = 0
                     for sent, received in result:
-                        ip = received.psrc
-                        mac = received.hwsrc
+                        discovered_devices[received.psrc] = received.hwsrc
                         
+                    # Procesar todos los dispositivos encontrados (Caché + Scapy)
+                    discovered_count = 0
+                    for ip, mac in discovered_devices.items():
                         # Auditar el dispositivo descubierto (Firmware Crawler)
                         device_info = crawler.audit_device(ip, mac)
                         device_info["is_online"] = 1
@@ -84,9 +97,9 @@ def start_backend():
                         
                         # Guardar y generar alertas si aplican
                         alert_manager.evaluate_device(device_info)
-                        discovered += 1
+                        discovered_count += 1
                         
-                    logger.info(f"Escaneo de red completado: {discovered} dispositivos activos encontrados.")
+                    logger.info(f"Escaneo de red completado: {discovered_count} dispositivos activos encontrados (Caché ARP + Scapy).")
                     
                 except Exception as e:
                     logger.error(f"Error en descubrimiento de red: {e}")
