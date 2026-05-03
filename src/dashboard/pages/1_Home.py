@@ -4,7 +4,13 @@ from src.dashboard.utils.data_loader import load_alert_summary, load_network_sta
 
 st.set_page_config(page_title="Home - IPS/IDS", page_icon="🏠", layout="wide")
 
-st.title("🏠 Estado General del Sistema")
+col_title, col_btn = st.columns([4, 1])
+with col_title:
+    st.title("🏠 Estado General del Sistema")
+with col_btn:
+    st.write("") # Espaciado
+    if st.button("🔄 Actualizar Datos", use_container_width=True):
+        st.rerun()
 
 # Cargar datos
 summary = load_alert_summary()

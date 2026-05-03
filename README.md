@@ -39,12 +39,13 @@ Este proyecto integra diversas tecnologías para lograr un ecosistema de segurid
 | Categoría | Herramientas / Tecnologías | Descripción |
 |-----------|----------------------------|-------------|
 | **Hardware** | Raspberry Pi 4/5 | Plataforma de despliegue principal. |
-| **Lenguaje** | | Lenguaje base para todo el desarrollo. |
-| **IA / ML** | | Para ejecución ligera de modelos de detección de anomalías. |
-| **Redes** |  | Captura y análisis de paquetes en tiempo real. |
-| **Dashboard** | | Interfaz web para visualización y control. |
-| **Base de Datos** | | Almacenamiento de logs y métricas temporales. |
-| **Control** |  | Gestión de reglas de firewall para bloqueo (IPS). |
+| **Lenguaje** | Python 3.11+ | Lenguaje base para todo el desarrollo. |
+| **IA / ML** | scikit-learn, XGBoost, LightGBM, CatBoost | Modelos de ML para detección de anomalías. |
+| **Redes** | Scapy, PyShark | Captura y análisis de paquetes en tiempo real. |
+| **Dashboard** | Streamlit, Plotly | Interfaz web interactiva para visualización y control. |
+| **Base de Datos** | SQLite, SQLAlchemy | Almacenamiento de logs y métricas temporales. |
+| **Control** | iptables, netfilter | Gestión de reglas de firewall para bloqueo (IPS). |
+| **Data Science** | Pandas, NumPy, SciPy, Jupyter | Análisis exploratorio y prototipado. |
 
 ## ⚙️ Características (Planned)
 
@@ -64,30 +65,69 @@ IPS_IDS_Raspberry_IA/
 ├── src/                # 💻 CÓDIGO FUENTE
 └── README.md
 ```
+## � Timeline de Desarrollo (10 Sprints)
+
+| Sprint | Tema | Duración | Estado |
+|--------|------|----------|--------|
+| **Sprint 0** | Configuración base, estructura de carpetas, setup Python | Semana 1-2 | 🔄 En progreso |
+| **Sprint 1** | Captura y procesamiento de datos de red | Semana 3-4 | ⏳ Pendiente |
+| **Sprint 2** | Exploración y análisis de datasets (EDA) | Semana 5-6 | ⏳ Pendiente |
+| **Sprint 3** | Ingeniería de características y preprocesamiento | Semana 7-8 | ⏳ Pendiente |
+| **Sprint 4** | Implementación ML: modelo base y baseline | Semana 9-10 | ⏳ Pendiente |
+| **Sprint 5** | Optimización y tunning de modelos | Semana 11-12 | ⏳ Pendiente |
+| **Sprint 6** | Backend API REST y almacenamiento | Semana 13-14 | ⏳ Pendiente |
+| **Sprint 7** | Dashboard Streamlit e integración completa | Semana 15-16 | ⏳ Pendiente |
+| **Sprint 8** | Testing en Raspberry Pi y optimización hw | Semana 17-18 | ⏳ Pendiente |
+| **Sprint 9** | Documentación final, ajustes y defensa | Semana 19-20 | ⏳ Pendiente |
+
 ## 🛠️ Requisitos del Sistema
 
 ### Hardware
-- Raspberry Pi 4 8Gb (recomendado) o superior.
+- Raspberry Pi 4 8GB (recomendado) o superior.
 - Tarjeta MicroSD (mínimo 32GB).
 - Conexión a red (Ethernet recomendado).
 
 ### Software
-- Sistema Operativo: Raspberry Pi OS (64-bit).
-- Lenguaje: 
-- Bibliotecas:
+- **Sistema Operativo:** Raspberry Pi OS (64-bit)
+- **Lenguaje:** Python 3.11 o superior
+- **Gestor de paquetes:** pip 26.0+
+- **Entorno virtual:** venv (Python)
+- **Git:** Para control de versiones
 
 ## 📂 Estructura del Proyecto
 
 
 ## 🔧 Instalación y Configuración
 
-*(Esta sección se completará a medida que avance el desarrollo)*
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/tu-usuario/IPS_IDS_Raspberry_IA.git
+cd IPS_IDS_Raspberry_IA
+```
 
-1. Clonar el repositorio:
-   ```bash
-   git clone https://github.com/tu-usuario/IPS_IDS_Raspberry_IA.git
-   cd IPS_IDS_Raspberry_IA
-   ```
+### 2. Crear entorno virtual
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# o en Windows (PowerShell):
+.\venv\Scripts\Activate.ps1
+```
+
+### 3. Instalar dependencias
+```bash
+pip install --upgrade pip
+pip install -r src/requirements.txt
+```
+
+### 4. Verificar instalación
+```bash
+python -c "import capture, ml, dashboard, utils; print('✅ Imports OK')"
+```
+
+### 5. Iniciar desarrollo
+- **Exploración:** `jupyter notebook` en la carpeta `notebooks/`
+- **Dashboard:** `streamlit run src/dashboard/app.py`
+- **Tests:** `pytest tests/unit/` y `pytest tests/integration/`
 
 
 ## 📊 Uso

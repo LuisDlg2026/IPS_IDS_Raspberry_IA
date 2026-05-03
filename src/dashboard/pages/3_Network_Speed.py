@@ -4,8 +4,14 @@ from src.dashboard.utils.data_loader import load_network_stats
 
 st.set_page_config(page_title="Velocidad de Red - IPS/IDS", page_icon="⚡", layout="wide")
 
-st.title("⚡ Velocidad y Rendimiento de Red")
-st.markdown("Monitorización en tiempo real del uso de ancho de banda y rendimiento del sistema base.")
+col_title, col_btn = st.columns([4, 1])
+with col_title:
+    st.title("⚡ Velocidad y Rendimiento de Red")
+    st.markdown("Monitorización en tiempo real del uso de ancho de banda y rendimiento del sistema base.")
+with col_btn:
+    st.write("") # Espaciado
+    if st.button("🔄 Actualizar Datos", use_container_width=True):
+        st.rerun()
 
 # Filtros
 col_filtro, _ = st.columns([1, 3])
