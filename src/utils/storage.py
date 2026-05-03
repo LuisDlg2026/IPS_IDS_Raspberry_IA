@@ -290,6 +290,19 @@ class Database:
             finally:
                 conn.close()
 
+    def update_device_label(self, ip: str, new_hostname: str, new_notes: str):
+        """Permite al usuario editar manualmente el nombre o notas de un dispositivo."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "UPDATE devices SET hostname = ?, notes = ? WHERE ip = ?",
+                    (new_hostname, new_notes, ip)
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
     # ─── NETWORK STATS ──────────────────────────────────────
 
     def save_network_stats(self, stats: Dict):
