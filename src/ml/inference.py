@@ -155,19 +155,24 @@ class InferenceEngine:
             X_scaled_52 = self._scaler.transform(X_df_52)
         
         # 3. Extraer solo las 36 features seleccionadas del array escalado
-        X = np.zeros((1, len(self._selected_features)), dtype=np.float64)
+        X_array = np.zeros((1, len(self._selected_features)), dtype=np.float64)
         for i, idx in enumerate(self._feature_indices):
-            X[0, i] = X_scaled_52[0, idx]
+            X_array[0, i] = X_scaled_52[0, idx]
+
+        # Convertimos también a DataFrame para evitar el UserWarning del modelo en predict() y predict_proba()
+        X = pd.DataFrame(X_array, columns=self._selected_features)
 
         # 4. Predecir
-        y_pred = self._model.predict(X)[0]
-        prediction = self._label_encoder.inverse_transform([y_pred])[0]
-
-        # Probabilidades (si el modelo las soporta)
-        probabilities = {}
-        confidence = 1.0
-        if hasattr(self._model, 'predict_proba'):
-            proba = self._model.predict_proba(X)[0]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            y_pred = self._model.predict(X)[0]
+            prediction = self._label_encoder.inverse_transform([y_pred])[0]
+            
+            # Probabilidades (si el modelo las soporta)
+            probabilities = {}
+            confidence = 1.0
+            if hasattr(self._model, 'predict_proba'):
+                proba = self._model.predict_proba(X)[0]
             confidence = float(np.max(proba))
             probabilities = {
                 cls: round(float(p), 4)

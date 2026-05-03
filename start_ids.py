@@ -108,6 +108,22 @@ def start_backend():
                     
                     for sent, received in result:
                         discovered_devices[received.psrc] = received.hwsrc
+
+                    # 3. Forzar despertar (ICMP Ping Sweep) nativamente desde la Pi para IoTs dormidos
+                    # Solo lo mandamos en background de forma rápida con ping
+                    # Extraer base ip de target_ip (ej. 192.168.1.0/24 -> 192.168.1)
+                    base_ip_parts = target_ip.split('/')[0].split('.')[:3]
+                    base_ip_str = ".".join(base_ip_parts)
+                    if base_ip_str:
+                        # Lanzar comando de barrido rápido (ping a broadcast para sacudir la subred, o nmap)
+                        # Muchos IoTs responden mejor a un ping dirigido a su broadcast o a toda la red con la herramienta fping o ping -b
+                        # Para no bloquear, lo ejecutamos en un subproceso
+                        try:
+                            # Hacemos ping broadcast a la red para forzar tablas ARP
+                            bcast_ip = f"{base_ip_str}.255"
+                            subprocess.Popen(['ping', '-c', '2', '-b', bcast_ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except Exception:
+                            pass
                         
                     # Procesar todos los dispositivos encontrados (Caché + Scapy)
                     discovered_count = 0
