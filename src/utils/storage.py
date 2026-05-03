@@ -71,8 +71,8 @@ class Database:
                     );
 
                     CREATE TABLE IF NOT EXISTS devices (
-                        mac TEXT PRIMARY KEY,
-                        ip TEXT,
+                        ip TEXT PRIMARY KEY,
+                        mac TEXT,
                         hostname TEXT,
                         vendor TEXT,
                         os_guess TEXT,
@@ -219,31 +219,40 @@ class Database:
         with self._lock:
             conn = self._get_conn()
             try:
+                ip = device.get("ip")
                 mac = device.get("mac", "unknown")
+                if not ip: return mac
+                
+                # Si es un descubrimiento pasivo donde MAC es unknown, no podemos pisar la key si ya existia la IP
+                cursor = conn.execute("SELECT mac FROM devices WHERE ip = ?", (ip,))
+                row = cursor.fetchone()
+                if row and row['mac'] != "unknown" and mac == "unknown":
+                    mac = row['mac']
+                
                 conn.execute("""
-                    INSERT INTO devices (mac, ip, hostname, vendor, os_guess,
+                    INSERT INTO devices (ip, mac, hostname, vendor, os_guess,
                                         open_ports, risk_level, notes)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(mac) DO UPDATE SET
-                        ip = excluded.ip,
-                        hostname = excluded.hostname,
-                        vendor = COALESCE(excluded.vendor, devices.vendor),
+                    ON CONFLICT(ip) DO UPDATE SET
+                        mac = COALESCE(NULLIF(excluded.mac, 'unknown'), devices.mac),
+                        hostname = COALESCE(excluded.hostname, devices.hostname),
+                        vendor = CASE WHEN excluded.vendor != 'Unknown (Pasivo)' THEN excluded.vendor ELSE devices.vendor END,
                         os_guess = COALESCE(excluded.os_guess, devices.os_guess),
                         open_ports = COALESCE(excluded.open_ports, devices.open_ports),
                         last_seen = datetime('now','localtime'),
                         is_online = 1
                 """, (
+                    ip,
                     mac,
-                    device.get("ip"),
                     device.get("hostname"),
-                    device.get("vendor"),
+                    device.get("vendor", "Unknown (Pasivo)"),
                     device.get("os_guess"),
                     json.dumps(device.get("open_ports", [])),
                     device.get("risk_level", "low"),
                     device.get("notes"),
                 ))
                 conn.commit()
-                return mac
+                return ip
             finally:
                 conn.close()
 
