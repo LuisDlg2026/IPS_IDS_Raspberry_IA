@@ -16,5 +16,7 @@ services:
       - ./data:/app/data
     environment:
       - IDS_LOG_LEVEL=INFO
-      - IDS_CAPTURE_IFACE=eth0
+      # Permitimos que coja la interfaz del entorno, y si no, por defecto a wlan0 (muy común en Raspberry)
+      # Puedes cambiarlo a eth0 si usas cable: IDS_CAPTURE_IFACE=eth0 docker-compose up -d
+      - IDS_CAPTURE_IFACE=${IDS_CAPTURE_IFACE:-wlan0}
       - IDS_MODEL=random_forest

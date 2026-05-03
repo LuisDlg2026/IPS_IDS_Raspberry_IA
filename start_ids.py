@@ -40,9 +40,23 @@ def start_backend():
             crawler = FirmwareCrawler(db)
             alert_manager = DeviceAlertManager(db)
             
-            # Detectar subred basada en gateway o forzar una tipica local
-            target_ip = "192.168.1.0/24"
-            logger.info(f"Iniciando escaneo de dispositivos (ARP) en la red {target_ip}...")
+            # 1. Obtener la interfaz de captura desde la config (o usar fallback 'eth0')
+            from src.config import CAPTURE_INTERFACE
+            from scapy.arch import get_if_addr
+            
+            iface_name = CAPTURE_INTERFACE if CAPTURE_INTERFACE else "eth0"
+            
+            # 2. Deducir automáticamente la subred asumiendo formato /24
+            try:
+                # Intenta obtener la IP actual de la Raspberry, ej: 192.168.0.22
+                local_ip = get_if_addr(iface_name)
+                default_target = ".".join(local_ip.split(".")[:3]) + ".0/24" 
+            except Exception as e:
+                logger.warning(f"No se pudo detectar IP de {iface_name}, usando red por defecto. Error: {e}")
+                default_target = "192.168.1.0/24"
+                
+            target_ip = os.environ.get("IDS_TARGET_SUBNET", default_target)
+            logger.info(f"Iniciando escaneo ARP en la red {target_ip} a través de la interfaz {iface_name}...")
             
             while True:
                 try:
@@ -50,10 +64,6 @@ def start_backend():
                     arp_request = ARP(pdst=target_ip)
                     ether = Ether(dst="ff:ff:ff:ff:ff:ff")
                     packet = ether/arp_request
-                    
-                    # Obligar a usar la interfaz real de la Raspberry Pi
-                    # Si no lo indicamos, Docker podría enviarlo por la red virtual interna 'docker0'
-                    iface_name = os.environ.get("IDS_CAPTURE_IFACE", "eth0")
                     
                     # srp envia y recibe en capa 2 (MAC)
                     result = srp(packet, timeout=5, verbose=0, iface=iface_name)[0]
