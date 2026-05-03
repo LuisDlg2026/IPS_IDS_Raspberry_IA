@@ -71,6 +71,21 @@ class InferenceEngine:
         self._n_features = len(self._selected_features)
         self._classes = list(self._label_encoder.classes_)
         self._n_classes = len(self._classes)
+        
+        # Guardar las 52 features del scaler para poder instanciar el array original a escalar
+        if hasattr(self._scaler, 'feature_names_in_'):
+            self._scaler_features = list(self._scaler.feature_names_in_)
+        else:
+            # Fallback hardcoded if scikit-learn version drops it
+            self._scaler_features = ['arp.opcode', 'arp.hw.size', 'icmp.checksum', 'icmp.seq_le', 'icmp.transmit_timestamp', 'http.file_data', 'http.content_length', 'http.request.uri.query', 'http.request.method', 'http.referer', 'http.request.full_uri', 'http.request.version', 'http.response', 'tcp.ack', 'tcp.ack_raw', 'tcp.checksum', 'tcp.connection.fin', 'tcp.connection.rst', 'tcp.connection.syn', 'tcp.connection.synack', 'tcp.dstport', 'tcp.flags', 'tcp.flags.ack', 'tcp.len', 'tcp.options', 'tcp.payload', 'tcp.seq', 'tcp.srcport', 'udp.port', 'udp.stream', 'udp.time_delta', 'dns.qry.name', 'dns.qry.name.len', 'dns.qry.qu', 'dns.retransmission', 'dns.retransmit_request', 'dns.retransmit_request_in', 'mqtt.conack.flags', 'mqtt.conflag.cleansess', 'mqtt.conflags', 'mqtt.hdrflags', 'mqtt.len', 'mqtt.msg', 'mqtt.msgtype', 'mqtt.proto_len', 'mqtt.protoname', 'mqtt.topic', 'mqtt.topic_len', 'mqtt.ver', 'mbtcp.len', 'mbtcp.trans_id', 'mbtcp.unit_id']
+
+        # Precalcular índices del scaler a las features seleccionadas para mayor velocidad
+        self._feature_indices = []
+        for feat in self._selected_features:
+            if feat in self._scaler_features:
+                self._feature_indices.append(self._scaler_features.index(feat))
+            else:
+                self._feature_indices.append(0) # Failsafe
 
         # Métricas de rendimiento
         self._prediction_count = 0
@@ -114,38 +129,30 @@ class InferenceEngine:
     def predict(self, features: Dict[str, float]) -> Dict:
         """
         Realiza una predicción a partir de un diccionario de features.
-
-        Args:
-            features: Diccionario {nombre_feature: valor}.
-                      Debe contener las features en self.feature_names.
-
-        Returns:
-            Dict con:
-                - 'prediction': nombre de la clase predicha
-                - 'class_id': índice numérico de la clase
-                - 'confidence': probabilidad máxima (si el modelo soporta predict_proba)
-                - 'probabilities': dict {clase: probabilidad} para todas las clases
-                - 'inference_ms': tiempo de inferencia en ms
-                - 'is_attack': bool, True si no es 'Normal'
-                - 'severity': nivel de severidad del ataque
         """
-        # Construir vector de features en el orden correcto
-        feature_vector = self._build_feature_vector(features)
-
-        # Escalar
-        # NOTA: El scaler se fitteó con 52 features (antes de la selección),
-        # pero el modelo usa 36 (después de la selección).
-        # Los modelos se entrenaron con datos ya escalados y seleccionados,
-        # por lo que el vector ya viene escalado del pipeline del notebook.
-        # Aquí aplicamos el mismo escalado.
-
-        # Medir tiempo de inferencia
+        
+        # Medir tiempo de inferencia total
         t_start = time.perf_counter()
 
-        # Reshape para una sola muestra
-        X = feature_vector.reshape(1, -1)
+        # 1. Construir vector inicial sobre las 52 features originales del Scaler
+        vector_52 = np.zeros(len(self._scaler_features), dtype=np.float64)
+        for i, feat_name in enumerate(self._scaler_features):
+            if feat_name in features:
+                val = features[feat_name]
+                try:
+                    vector_52[i] = float(val) if val is not None else 0.0
+                except (ValueError, TypeError):
+                    vector_52[i] = 0.0
+        
+        # 2. Escalar el vector de 52 elementos
+        X_scaled_52 = self._scaler.transform(vector_52.reshape(1, -1))
+        
+        # 3. Extraer solo las 36 features seleccionadas del array escalado
+        X = np.zeros((1, len(self._selected_features)), dtype=np.float64)
+        for i, idx in enumerate(self._feature_indices):
+            X[0, i] = X_scaled_52[0, idx]
 
-        # Predecir
+        # 4. Predecir
         y_pred = self._model.predict(X)[0]
         prediction = self._label_encoder.inverse_transform([y_pred])[0]
 
