@@ -22,10 +22,20 @@ st.divider()
 
 st.subheader("Mantenimiento")
 
-if st.button("🧹 Limpiar registros antiguos (Más de 30 días)", type="primary"):
-    db.cleanup(days=30)
-    st.success("Limpieza completada exitosamente. Se ha ejecutado VACUUM en SQLite.")
-    
+col_m1, col_m2 = st.columns(2)
+
+with col_m1:
+    if st.button("🧹 Limpiar registros antiguos (> 30 días)", type="primary"):
+        db.cleanup(days=30)
+        st.success("Limpieza completada exitosamente.")
+        st.rerun()
+        
+with col_m2:
+    if st.button("🚨 Borrar TODAS las Alertas", type="primary"):
+        db.clear_alerts()
+        st.success("Todas las alertas han sido eliminadas.")
+        st.rerun()
+        
 st.divider()
 
 st.subheader("Configuración del Modelo ML")

@@ -223,6 +223,17 @@ class Database:
             finally:
                 conn.close()
 
+    def clear_alerts(self):
+        """Elimina todas las alertas de la base de datos."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("DELETE FROM alerts")
+                conn.commit()
+                conn.execute("VACUUM")
+            finally:
+                conn.close()
+
     # ─── DEVICES ────────────────────────────────────────────
 
     def save_device(self, device: Dict) -> str:
