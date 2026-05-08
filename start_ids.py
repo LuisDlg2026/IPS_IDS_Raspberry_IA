@@ -165,8 +165,20 @@ def start_backend():
 
         # 4.6 Callback para registros web (DPI)
         def on_web_traffic_detected(log_entry):
-            # Guardar la web visitada/consulta DNS/FTP/SMTP en la base de datos
-            db.save_web_log(log_entry)
+            if log_entry.get("protocol") == "DHCP":
+                # Es un evento de descubrimiento pasivo de Hostname, no lo metemos al log web
+                hostname = log_entry.get("domain_url")
+                ip = log_entry.get("src_ip")
+                if ip and hostname:
+                    logger.info(f"Hostname interceptado vía DHCP: {ip} -> {hostname}")
+                    db.save_device({
+                        "ip": ip,
+                        "hostname": hostname,
+                        "vendor": "Unknown (Pasivo)" # Se sobreescribirá cuando pase el escáner ARP
+                    })
+            else:
+                # Es tráfico real, lo guardamos en la tabla web
+                db.save_web_log(log_entry)
 
         # 5. Iniciar el detector pasándole los callbacks
         detector = IDSDetector(on_alert=on_alert_detected, on_flow=on_flow_detected)

@@ -82,11 +82,32 @@ class FirmwareCrawler:
         return device_info
 
     def _guess_vendor(self, mac: str) -> str:
-        """Estima el fabricante basado en el prefijo MAC."""
-        if not mac:
+        """Estima el fabricante usando la API pública macvendors.com o caché local."""
+        if not mac or mac == "unknown":
             return "Unknown"
+            
         oui = mac.upper()[:8]
-        return self._vendors.get(oui, "Unknown")
+        if oui in self._vendors:
+            return self._vendors[oui]
+            
+        # Consultar API online (https://api.macvendors.com/)
+        import time
+        try:
+            logger.debug(f"Consultando fabricante para MAC {mac} en macvendors.com...")
+            # La API tiene un límite de 1 petición por segundo
+            time.sleep(1.1)
+            resp = requests.get(f"https://api.macvendors.com/{mac}", timeout=3)
+            if resp.status_code == 200:
+                vendor = resp.text.strip()
+                self._vendors[oui] = vendor # Guardar en caché para no volver a preguntar
+                logger.info(f"Fabricante detectado: {vendor} ({mac})")
+                return vendor
+            elif resp.status_code == 429:
+                logger.warning("Límite de peticiones a macvendors.com excedido.")
+        except Exception as e:
+            logger.debug(f"Error consultando macvendors.com: {e}")
+            
+        return "Unknown"
 
     def _grab_http_banner(self, ip: str, port: int = 80, timeout: int = 2) -> Tuple[str, str]:
         """Obtiene el banner y titulo HTTP de un dispositivo."""

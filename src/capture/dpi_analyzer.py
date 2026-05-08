@@ -8,7 +8,7 @@ información de navegación web, DNS, FTP y correo electrónico.
 import logging
 import re
 from typing import Dict, Optional
-from scapy.all import DNSQR, TCP, Raw, IP
+from scapy.all import DNSQR, TCP, UDP, Raw, IP, DHCP, BOOTP
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,20 @@ class DPIAnalyzer:
                 "domain_url": qname,
                 "details": {"type": "Query"}
             }
+            
+        # 1.5 Analizar DHCP (Capa UDP 67/68) para extraer nombres de dispositivo
+        elif packet.haslayer(DHCP):
+            hostname = self._parse_dhcp_hostname(packet[DHCP])
+            if hostname:
+                # Modificamos log_entry como tipo "Device_Name" para que el orquestador
+                # sepa que esto es info pasiva del dispositivo y no "navegación"
+                log_entry = {
+                    "src_ip": src_ip,
+                    "dst_ip": dst_ip,
+                    "protocol": "DHCP",
+                    "domain_url": hostname,
+                    "details": {"type": "Hostname Discovery"}
+                }
 
         # 2. Analizar protocolos TCP (HTTP, HTTPS, FTP, SMTP)
         elif packet.haslayer(TCP) and packet.haslayer(Raw):
@@ -137,6 +151,16 @@ class DPIAnalyzer:
                         "path": path,
                         "url": url
                     }
+        except Exception:
+            pass
+        return None
+
+    def _parse_dhcp_hostname(self, dhcp_layer) -> Optional[str]:
+        """Extrae el Hostname de las opciones DHCP (Opción 12)."""
+        try:
+            for opt in dhcp_layer.options:
+                if isinstance(opt, tuple) and opt[0] == "hostname":
+                    return opt[1].decode('utf-8', errors='ignore')
         except Exception:
             pass
         return None
