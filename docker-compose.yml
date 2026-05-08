@@ -14,6 +14,9 @@ services:
     volumes:
       # Persistencia de la base de datos (se guardará en la carpeta local data/)
       - ./data:/app/data
+      # Sincronizar la zona horaria del contenedor con la Raspberry Pi (evita el desfase de 2 horas)
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     environment:
       - IDS_LOG_LEVEL=INFO
       # Permitimos que coja la interfaz del entorno, y si no, por defecto a eth0 (común para servidor IDS)
