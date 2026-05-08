@@ -78,7 +78,7 @@ else:
         display_df = display_df.sort_values(by="Hora", ascending=False)
         
         st.dataframe(
-            display_df.style.applymap(color_protocol, subset=['Protocolo']),
+            display_df.style.map(color_protocol, subset=['Protocolo']),
             use_container_width=True,
             hide_index=True,
             height=600
