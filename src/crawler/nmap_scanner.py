@@ -38,9 +38,10 @@ class NmapScanner:
             
         logger.info(f"Iniciando escaneo profundo Nmap para {ip}...")
         try:
-            # -O: OS Fingerprinting, -F: Fast scan (top 100 ports), -T4: Aggressive timing
-            # --osscan-limit: limite para no perder tiempo si no hay puertos abiertos
-            self.nm.scan(hosts=ip, arguments='-O -F -T4 --osscan-limit')
+            # -sV: Detección de versión de servicios (menos agresiva que -O)
+            # -F: Escaneo rápido (top 100 puertos)
+            # -T3: Velocidad normal para no hacer saltar alarmas
+            self.nm.scan(hosts=ip, arguments='-sV -F -T3')
             
             if ip not in self.nm.all_hosts():
                 logger.warning(f"Nmap no encontró el host {ip} o no respondió.")
@@ -57,10 +58,18 @@ class NmapScanner:
                         name = host_data['tcp'][port].get('name', 'unknown')
                         open_ports.append(f"{port}/tcp ({name})")
                         
-            # Extraer estimación de OS
+            # Extraer estimación de OS basada en los banners de servicios (sV)
+            # Ocasionalmente nmap adivina el OS cuando usa -sV
             os_guess = None
             if 'osmatch' in host_data and len(host_data['osmatch']) > 0:
                 os_guess = host_data['osmatch'][0].get('name')
+            else:
+                # Si no hay osmatch, buscamos en los servicios
+                for port in host_data.get('tcp', {}):
+                    cpe = host_data['tcp'][port].get('cpe', '')
+                    if 'cpe:/o:linux' in cpe: os_guess = 'Linux'
+                    elif 'cpe:/o:microsoft:windows' in cpe: os_guess = 'Windows'
+                    elif 'cpe:/o:apple' in cpe: os_guess = 'Apple/iOS/macOS'
                 
             result = {
                 "ip": ip,

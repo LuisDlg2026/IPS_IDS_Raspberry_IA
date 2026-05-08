@@ -111,7 +111,23 @@ def start_backend():
                     for sent, received in result:
                         discovered_devices[received.psrc] = received.hwsrc
 
-                    # 3. Forzar despertar (ICMP Ping Sweep) nativamente desde la Pi para IoTs dormidos
+                    # 3. Usar nmap para hacer un Ping Sweep a toda la red (-sn)
+                    # Esto es super útil para descubrir móviles en la Wi-Fi o aparatos dormidos
+                    try:
+                        import nmap
+                        nm = nmap.PortScanner()
+                        nm.scan(hosts=target_ip, arguments='-sn')
+                        for host in nm.all_hosts():
+                            if host not in discovered_devices:
+                                # Si no tenemos su MAC, se la pedimos
+                                if 'mac' in nm[host]['addresses']:
+                                    discovered_devices[host] = nm[host]['addresses']['mac']
+                                else:
+                                    discovered_devices[host] = 'unknown'
+                    except Exception as e:
+                        logger.warning(f"Error en Nmap Ping Sweep: {e}")
+
+                    # 4. Forzar despertar (ICMP Ping Sweep nativo) por si nmap falla
                     # Solo lo mandamos en background de forma rápida con ping
                     # Extraer base ip de target_ip (ej. 192.168.1.0/24 -> 192.168.1)
                     base_ip_parts = target_ip.split('/')[0].split('.')[:3]
