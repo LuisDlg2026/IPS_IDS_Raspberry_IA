@@ -13,6 +13,8 @@ from src.utils.network_stats import NetworkMonitor
 from src.crawler.firmware_crawler import FirmwareCrawler
 from src.crawler.device_alerts import DeviceAlertManager
 from src.capture.arp_spoofer import ArpSpoofer
+from src.crawler.nmap_scanner import NmapScanner
+import queue
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -127,6 +129,31 @@ def start_backend():
                         except Exception:
                             pass
                         
+                    
+                    # 4.3 Inicializar escáner automático Nmap en segundo plano
+                    nmap_scanner = NmapScanner(db)
+                    nmap_queue = queue.Queue()
+                    scanned_ips = set()
+                    
+                    def nmap_worker():
+                        """Hilo dedicado para escaneo Nmap (1 por 1 para no saturar)."""
+                        while True:
+                            try:
+                                ip_to_scan = nmap_queue.get()
+                                if ip_to_scan not in scanned_ips:
+                                    logger.info(f"Procesando escaneo automático Nmap para {ip_to_scan}...")
+                                    nmap_scanner.scan_device_async(ip_to_scan)
+                                    # Esperar un poco antes de lanzar el siguiente para no ahogar la red
+                                    time.sleep(20)
+                                    scanned_ips.add(ip_to_scan)
+                                nmap_queue.task_done()
+                            except Exception as e:
+                                logger.error(f"Error en nmap_worker: {e}")
+                                time.sleep(5)
+                                
+                    nmap_thread = threading.Thread(target=nmap_worker, daemon=True)
+                    nmap_thread.start()
+
                     # Procesar todos los dispositivos encontrados (Caché + Scapy)
                     discovered_count = 0
                     for ip, mac in discovered_devices.items():
@@ -138,6 +165,10 @@ def start_backend():
                         # Guardar y generar alertas si aplican
                         alert_manager.evaluate_device(device_info)
                         discovered_count += 1
+                        
+                        # Encolar para escaneo profundo (si no se escaneó ya en esta sesión)
+                        if ip not in scanned_ips and not ip.endswith(".255"):
+                            nmap_queue.put(ip)
                         
                     logger.info(f"Escaneo de red completado: {discovered_count} dispositivos activos encontrados (Caché ARP + Scapy).")
                     
@@ -189,9 +220,6 @@ def start_backend():
 
         # 4.5 Callback de descubrimiento pasivo (Cualquier IP que envíe/reciba tráfico se añade)
         def on_flow_detected(src_ip, dst_ip):
-            # FIX: Solo añadimos src_ip. Si alguien envía un paquete, sabemos que existe al 100%.
-            # Si añadiéramos dst_ip, herramientas como Nmap, nuestro propio ARP o Ping Sweep 
-            # inventarían 255 dispositivos fantasma (IPs escaneadas que no respondieron).
             if src_ip.startswith("192.168.") or src_ip.startswith("10.") or src_ip.startswith("172."): # Solo IPs locales
                 # Añadir a la base de datos de forma pasiva
                 db.save_device({
@@ -201,7 +229,8 @@ def start_backend():
                     "is_online": 1,
                     "risk_level": "low"
                 })
-
+                # No encolamos Nmap aquí para no spamear por cada paquete, solo en el loop ARP
+                
         # 4.6 Callback para registros web (DPI)
         def on_web_traffic_detected(log_entry):
             if log_entry.get("protocol") == "DHCP":

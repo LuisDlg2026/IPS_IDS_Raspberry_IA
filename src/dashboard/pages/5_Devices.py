@@ -46,6 +46,14 @@ else:
     # Preparar el dataframe para mostrar
     display_df = devices_df.copy()
     display_df['is_online'] = display_df['is_online'].apply(format_online)
+    # Convertir string JSON de open_ports a lista real para renderizarla bien
+    import json
+    def parse_ports(val):
+        if not val: return []
+        try: return json.loads(val)
+        except: return []
+        
+    display_df['open_ports'] = display_df['open_ports'].apply(parse_ports)
     
     styled_df = display_df.style.map(color_risk, subset=['risk_level'])
     
@@ -58,6 +66,7 @@ else:
             "notes": st.column_config.TextColumn("Notas"),
             "vendor": st.column_config.TextColumn("Fabricante"),
             "os_guess": st.column_config.TextColumn("Sistema Operativo"),
+            "open_ports": st.column_config.ListColumn("Puertos Abiertos"),
             "risk_level": st.column_config.TextColumn("Nivel de Riesgo"),
             "is_online": st.column_config.TextColumn("Conectado"),
             "last_seen": st.column_config.DatetimeColumn("Última vez visto", format="DD/MM/YYYY HH:mm:ss"),

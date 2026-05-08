@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libpcap-dev \
     iputils-ping \
     iproute2 \
+    nmap \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requerimientos y cachear la instalación de librerías

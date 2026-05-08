@@ -296,7 +296,7 @@ class Database:
                     device.get("hostname"),
                     device.get("vendor", "Unknown (Pasivo)"),
                     device.get("os_guess"),
-                    json.dumps(device.get("open_ports", [])),
+                    json.dumps(device.get("open_ports")) if device.get("open_ports") is not None else None,
                     device.get("risk_level", "low"),
                     device.get("notes"),
                 ))
