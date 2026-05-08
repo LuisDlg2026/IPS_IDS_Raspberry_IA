@@ -12,7 +12,6 @@ psutil>=5.9.0
 
 # Dashboard & Frontend
 streamlit>=1.35.0
-streamlit-autorefresh>=1.0.1
 plotly>=5.17.0
 pyvis>=0.3.2
 

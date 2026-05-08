@@ -2,19 +2,24 @@ import streamlit as st
 import pandas as pd
 from src.dashboard.utils.data_loader import load_web_traffic, load_devices
 
-from streamlit_autorefresh import st_autorefresh
+import time
+from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Tráfico Web (DPI) - IPS/IDS", page_icon="🌐", layout="wide")
+
+# Toggle de Auto-Refresco
+st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
 st.title("🌐 Auditoría de Tráfico Web (DPI)")
 st.markdown("Monitorización en tiempo real de la navegación (Capa 7), extrayendo dominios visitados, consultas DNS, transferencias FTP y tráfico de correo, usando Inspección Profunda de Paquetes.")
 
-# Auto-refresco de 5 segundos
-count = st_autorefresh(interval=5000, limit=None, key="web_autorefresh")
-
 col1, col2 = st.columns([8, 2])
 with col2:
-    st.info(f"Actualizando en tiempo real (Tick: {count})")
+    if auto_refresh:
+        st.info("Actualización automática activada 🔄")
+    else:
+        st.warning("Actualización pausada ⏸️")
 
 # Filtros
 devices_df = load_devices()
@@ -112,3 +117,8 @@ if not df.empty:
             if len(top_domain) > 30:
                 top_domain = top_domain[:27] + "..."
             st.metric("Sitio Web más visitado", top_domain)
+
+# -- Auto-Refresh --
+if auto_refresh:
+    time.sleep(DASHBOARD_REFRESH_RATE)
+    st.rerun()
