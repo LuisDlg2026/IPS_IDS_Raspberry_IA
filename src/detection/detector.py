@@ -96,9 +96,12 @@ class IDSDetector:
         from src.ml.inference import InferenceEngine
         from src.capture.capture import PacketCapture
         from src.capture.features_adapter import FlowAggregator
+        from src.capture.dpi_analyzer import DPIAnalyzer
 
         self._engine = InferenceEngine(model_name=model_name)
         self._aggregator = FlowAggregator()
+        self._dpi_analyzer = DPIAnalyzer(on_web_traffic=None) # Se inyectará el callback luego si es necesario
+        
         self._capture = PacketCapture(
             interface=interface,
             packet_callback=self._on_packet
@@ -206,9 +209,17 @@ class IDSDetector:
                 summary["by_severity"][alert.severity] += 1
         return summary
 
+    def set_web_traffic_callback(self, callback):
+        """Asigna el callback para cuando el DPI encuentra navegación web."""
+        self._dpi_analyzer._on_web_traffic = callback
+
     def _on_packet(self, packet):
-        """Callback para cada paquete capturado — lo añade al agregador."""
+        """Callback para cada paquete capturado — lo añade al agregador y al DPI."""
+        # 1. Análisis estadístico (Machine Learning)
         self._aggregator.add_packet(packet)
+        
+        # 2. Inspección Profunda de Paquetes (DPI - Capa 7)
+        self._dpi_analyzer.analyze_packet(packet)
 
     def _analysis_loop(self):
         """

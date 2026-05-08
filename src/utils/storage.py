@@ -107,12 +107,23 @@ class Database:
                         details TEXT
                     );
 
+                    CREATE TABLE IF NOT EXISTS web_traffic (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT DEFAULT (datetime('now','localtime')),
+                        src_ip TEXT,
+                        dst_ip TEXT,
+                        protocol TEXT,
+                        domain_url TEXT,
+                        details TEXT
+                    );
+
                     CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
                     CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
                     CREATE INDEX IF NOT EXISTS idx_alerts_attack ON alerts(attack_type);
                     CREATE INDEX IF NOT EXISTS idx_devices_ip ON devices(ip);
                     CREATE INDEX IF NOT EXISTS idx_stats_timestamp ON network_stats(timestamp);
                     CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+                    CREATE INDEX IF NOT EXISTS idx_web_timestamp ON web_traffic(timestamp);
                 """)
                 conn.commit()
                 logger.info("Tablas SQLite creadas/verificadas")
@@ -382,6 +393,54 @@ class Database:
             finally:
                 conn.close()
 
+    # ─── WEB TRAFFIC (DPI) ──────────────────────────────────
+    
+    def save_web_log(self, log_entry: Dict):
+        """Guarda un registro de navegación extraído por DPI."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("""
+                    INSERT INTO web_traffic
+                    (src_ip, dst_ip, protocol, domain_url, details)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    log_entry.get("src_ip"),
+                    log_entry.get("dst_ip"),
+                    log_entry.get("protocol"),
+                    log_entry.get("domain_url"),
+                    json.dumps(log_entry.get("details", {}))
+                ))
+                conn.commit()
+            finally:
+                conn.close()
+                
+    def get_web_logs(self, limit: int = 200, src_ip: str = None) -> List[Dict]:
+        """Obtiene el historial de navegación web."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                query = "SELECT * FROM web_traffic"
+                params = []
+                if src_ip:
+                    query += " WHERE src_ip = ?"
+                    params.append(src_ip)
+                query += " ORDER BY timestamp DESC LIMIT ?"
+                params.append(limit)
+                rows = conn.execute(query, params).fetchall()
+                results = []
+                for r in rows:
+                    d = dict(r)
+                    if d.get("details"):
+                        try:
+                            d["details"] = json.loads(d["details"])
+                        except Exception:
+                            pass
+                    results.append(d)
+                return results
+            finally:
+                conn.close()
+
     # ─── MANTENIMIENTO ──────────────────────────────────────
 
     def cleanup(self, days: int = 30):
@@ -390,7 +449,7 @@ class Database:
             conn = self._get_conn()
             try:
                 cutoff = f"-{days} days"
-                for table in ["alerts", "network_stats", "events"]:
+                for table in ["alerts", "network_stats", "events", "web_traffic"]:
                     conn.execute(
                         f"DELETE FROM {table} "
                         f"WHERE timestamp < datetime('now', ?, 'localtime')",

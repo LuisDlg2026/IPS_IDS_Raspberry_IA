@@ -74,3 +74,18 @@ def load_system_events(limit: int = 50) -> pd.DataFrame:
     df = pd.DataFrame(events)
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
+
+def load_web_traffic(limit: int = 500) -> pd.DataFrame:
+    """Carga los últimos registros de navegación web (DPI) en un DataFrame."""
+    db = get_db()
+    try:
+        logs = db.get_web_logs(limit=limit)
+    except Exception:
+        logs = []
+        
+    if not logs:
+        return pd.DataFrame(columns=["timestamp", "src_ip", "dst_ip", "protocol", "domain_url", "details"])
+    
+    df = pd.DataFrame(logs)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    return df

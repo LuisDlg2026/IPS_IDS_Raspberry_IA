@@ -163,8 +163,14 @@ def start_backend():
                     "risk_level": "low"
                 })
 
+        # 4.6 Callback para registros web (DPI)
+        def on_web_traffic_detected(log_entry):
+            # Guardar la web visitada/consulta DNS/FTP/SMTP en la base de datos
+            db.save_web_log(log_entry)
+
         # 5. Iniciar el detector pasándole los callbacks
         detector = IDSDetector(on_alert=on_alert_detected, on_flow=on_flow_detected)
+        detector.set_web_traffic_callback(on_web_traffic_detected)
         detector.start()
         
     except Exception as e:
