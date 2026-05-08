@@ -117,6 +117,11 @@ class Database:
                         details TEXT
                     );
 
+                    CREATE TABLE IF NOT EXISTS settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    );
+
                     CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
                     CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
                     CREATE INDEX IF NOT EXISTS idx_alerts_attack ON alerts(attack_type);
@@ -231,6 +236,28 @@ class Database:
                 conn.execute("DELETE FROM alerts")
                 conn.commit()
                 conn.execute("VACUUM")
+            finally:
+                conn.close()
+
+    # ─── SETTINGS ───────────────────────────────────────────
+
+    def get_setting(self, key: str, default=None) -> str:
+        """Obtiene un valor de configuración."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+                return row["value"] if row else default
+            finally:
+                conn.close()
+
+    def set_setting(self, key: str, value: str):
+        """Guarda un valor de configuración."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+                conn.commit()
             finally:
                 conn.close()
 

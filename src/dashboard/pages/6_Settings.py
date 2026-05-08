@@ -43,3 +43,49 @@ st.info("Para cambiar el modelo activo, modifica la variable de entorno `IDS_MOD
 
 current_model = os.environ.get("IDS_MODEL", "random_forest")
 st.text_input("Modelo Activo Actual", value=current_model, disabled=True)
+
+st.divider()
+
+st.subheader("🕵️‍♂️ Intercepción Activa (Modo MITM / ARP Spoofing)")
+st.warning("⚠️ **ATENCIÓN:** Esta función engaña a la red para redirigir el tráfico del dispositivo objetivo a través de la Raspberry Pi. Si la Raspberry Pi se apaga o hay un error, el dispositivo objetivo podría perder conexión a Internet.")
+
+# Leer estado actual de la DB
+mitm_enabled = db.get_setting("mitm_enabled") == "1"
+current_target = db.get_setting("mitm_target_ip", "")
+
+# Obtener dispositivos para el desplegable
+devices = db.get_devices(online_only=True)
+device_options = [""]
+if devices:
+    device_options.extend([d['ip'] for d in devices if d['ip'] != "192.168.1.1" and d['ip'] != "127.0.0.1"])
+
+col_sp1, col_sp2 = st.columns([3, 1])
+
+with col_sp1:
+    try:
+        default_idx = device_options.index(current_target) if current_target in device_options else 0
+    except ValueError:
+        default_idx = 0
+        
+    target_ip = st.selectbox(
+        "Dispositivo Objetivo (IP):", 
+        options=device_options, 
+        index=default_idx,
+        help="Selecciona la IP del dispositivo del que quieres capturar el tráfico web."
+    )
+
+with col_sp2:
+    st.write("")
+    st.write("")
+    if not mitm_enabled:
+        if st.button("▶️ Activar Intercepción", type="primary", use_container_width=True) and target_ip:
+            db.set_setting("mitm_target_ip", target_ip)
+            db.set_setting("mitm_enabled", "1")
+            st.rerun()
+    else:
+        if st.button("⏹️ Detener Intercepción", type="secondary", use_container_width=True):
+            db.set_setting("mitm_enabled", "0")
+            st.rerun()
+
+if mitm_enabled:
+    st.success(f"📡 Interceptando tráfico de: **{current_target}**")

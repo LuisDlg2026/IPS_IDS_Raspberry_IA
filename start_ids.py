@@ -8,9 +8,11 @@ from scapy.all import ARP, Ether, srp, conf
 
 from src.detection.detector import IDSDetector
 from src.utils.storage import Database
+from src.utils.storage import Database
 from src.utils.network_stats import NetworkMonitor
 from src.crawler.firmware_crawler import FirmwareCrawler
 from src.crawler.device_alerts import DeviceAlertManager
+from src.capture.arp_spoofer import ArpSpoofer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -147,6 +149,43 @@ def start_backend():
 
         discovery_thread = threading.Thread(target=network_discovery_loop, daemon=True)
         discovery_thread.start()
+        
+        # 4.2 Bucle de Intercepción Activa (MITM)
+        def spoofer_loop():
+            from src.config import CAPTURE_INTERFACE
+            spoofer_iface = os.environ.get("IDS_CAPTURE_IFACE", CAPTURE_INTERFACE or "eth0")
+            spoofer = ArpSpoofer(interface=spoofer_iface)
+            last_target = None
+            is_active = False
+            
+            while True:
+                try:
+                    # Leer de la DB el estado deseado
+                    spoof_target = db.get_setting("mitm_target_ip")
+                    spoof_enabled = db.get_setting("mitm_enabled") == "1"
+                    
+                    # Si ha cambiado el objetivo o el estado, reiniciar
+                    if spoof_enabled and spoof_target:
+                        if not is_active or spoof_target != last_target:
+                            if is_active:
+                                spoofer.stop()
+                            logger.info(f"Levantando Intercepción Activa (MITM) para {spoof_target}...")
+                            spoofer.start(target_ip=spoof_target)
+                            last_target = spoof_target
+                            is_active = True
+                    else:
+                        if is_active:
+                            logger.info("Apagando Intercepción Activa...")
+                            spoofer.stop()
+                            is_active = False
+                            last_target = None
+                            
+                except Exception as e:
+                    logger.error(f"Error en hilo Spoofer: {e}")
+                time.sleep(3) # Comprobar base de datos cada 3s
+
+        spoofer_thread = threading.Thread(target=spoofer_loop, daemon=True)
+        spoofer_thread.start()
 
         # 4.5 Callback de descubrimiento pasivo (Cualquier IP que envíe/reciba tráfico se añade)
         def on_flow_detected(src_ip, dst_ip):
