@@ -2,16 +2,19 @@ import streamlit as st
 import pandas as pd
 from src.dashboard.utils.data_loader import load_web_traffic, load_devices
 
+from streamlit_autorefresh import st_autorefresh
+
 st.set_page_config(page_title="Tráfico Web (DPI) - IPS/IDS", page_icon="🌐", layout="wide")
 
 st.title("🌐 Auditoría de Tráfico Web (DPI)")
 st.markdown("Monitorización en tiempo real de la navegación (Capa 7), extrayendo dominios visitados, consultas DNS, transferencias FTP y tráfico de correo, usando Inspección Profunda de Paquetes.")
 
-# Refresco manual
+# Auto-refresco de 5 segundos
+count = st_autorefresh(interval=5000, limit=None, key="web_autorefresh")
+
 col1, col2 = st.columns([8, 2])
 with col2:
-    if st.button("🔄 Actualizar Registros", use_container_width=True):
-        st.rerun()
+    st.info(f"Actualizando en tiempo real (Tick: {count})")
 
 # Filtros
 devices_df = load_devices()
