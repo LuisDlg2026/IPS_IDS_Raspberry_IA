@@ -1,35 +1,30 @@
 import streamlit as st
 import time
+import json
 from src.dashboard.utils.data_loader import load_devices
+from src.dashboard.utils.styles import (
+    inject_global_css, render_page_header, render_metric_card,
+    render_section_divider, render_footer, COLORS, SEVERITY_COLORS, SEVERITY_BG
+)
 from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Inventario - IPS/IDS", page_icon="📱", layout="wide")
-
-st.markdown("""
-<style>
-    .kpi-devices {
-        background-color: #1e1e1e;
-        border-radius: 8px;
-        padding: 15px;
-        border-bottom: 4px solid #4a4a4a;
-    }
-    .kpi-online {
-        border-bottom: 4px solid #21c354;
-    }
-    .kpi-vuln {
-        border-bottom: 4px solid #ff4b4b;
-    }
-</style>
-""", unsafe_allow_html=True)
+inject_global_css()
 
 # Toggle de Auto-Refresco
 st.sidebar.markdown(f"⏱️ **Auto-Refresco:** `{DASHBOARD_REFRESH_RATE}s`")
 auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
-st.title("📱 Directorio de Hosts y Dispositivos")
-st.markdown("Auditoría pasiva y activa de todo el hardware detectado operando en tu red.")
+# ── Header ──────────────────────────────────────────────────────
+render_page_header(
+    icon="📱",
+    title="Directorio de Hosts y Dispositivos",
+    subtitle="Auditoría pasiva y activa de todo el hardware detectado operando en tu red.",
+    gradient="linear-gradient(135deg, rgba(76, 201, 240, 0.08) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(124, 58, 237, 0.1) 100%)",
+    accent="linear-gradient(90deg, var(--accent-blue), var(--accent-purple))"
+)
 
-# Filtros
+# ── Filtros ─────────────────────────────────────────────────────
 col_f1, col_f2 = st.columns([1, 4])
 with col_f1:
     online_only = st.checkbox("🟢 Sólo dispositivos online", value=False)
@@ -37,55 +32,61 @@ with col_f1:
 devices_df = load_devices(online_only=online_only)
 
 if devices_df.empty:
-    st.info("Buscando dispositivos físicos en la capa de red...")
+    st.markdown("""
+    <div style="
+        text-align: center; padding: 60px 40px;
+        background: rgba(76, 201, 240, 0.05);
+        border: 1px solid rgba(76, 201, 240, 0.15);
+        border-radius: 16px;
+    ">
+        <div style="font-size: 3rem; margin-bottom: 12px; animation: sentinel-float 3s ease-in-out infinite; display: inline-block;">🔍</div>
+        <div style="color: var(--accent-blue); font-weight: 600; font-size: 1.1rem;">Buscando dispositivos físicos...</div>
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 6px;">Rastreando la capa de red para descubrir hardware</div>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    # Métricas rápidas
+    # ── Métricas rápidas ────────────────────────────────────────
     total = len(devices_df)
     online = len(devices_df[devices_df['is_online'] == 1])
     vuln = len(devices_df[devices_df['risk_level'].isin(['medium', 'high', 'critical'])])
-    
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown('<div class="kpi-devices">', unsafe_allow_html=True)
-        st.metric("📡 Total Histórico Descubiertos", total)
-        st.markdown('</div>', unsafe_allow_html=True)
+        render_metric_card("📡", "Total Histórico Descubiertos", str(total), accent="blue")
     with col2:
-        st.markdown('<div class="kpi-devices kpi-online">', unsafe_allow_html=True)
-        st.metric("📶 Conectados (Vivientes)", online)
-        st.markdown('</div>', unsafe_allow_html=True)
+        render_metric_card("📶", "Conectados (Vivientes)", str(online), accent="green",
+                          subtitle=f"{total - online} dormidos")
     with col3:
-        st.markdown('<div class="kpi-devices kpi-vuln">', unsafe_allow_html=True)
-        st.metric("🔥 Riesgo Medio/Alto", vuln)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.write("<br>", unsafe_allow_html=True)
+        render_metric_card("🔥", "Riesgo Medio/Alto", str(vuln), accent="red" if vuln > 0 else "green",
+                          glow=vuln > 0)
 
-    # Formateo visual
+    render_section_divider("Inventario Completo")
+
+    # ── Formateo visual ─────────────────────────────────────────
     def color_risk(val):
-        color = 'transparent'
-        if val in ['critical', 'high']: color = '#450000'
-        elif val == 'medium': color = '#4a2f00'
-        elif val == 'low': color = '#003310'
-        return f'background-color: {color}; color: white; border: 1px solid #777;'
+        risk_styles = {
+            'critical': f'background-color: {SEVERITY_BG["critical"]}; color: {SEVERITY_COLORS["critical"]}; border-left: 4px solid {SEVERITY_COLORS["critical"]}; font-weight: bold;',
+            'high': f'background-color: {SEVERITY_BG["high"]}; color: {SEVERITY_COLORS["high"]}; border-left: 4px solid {SEVERITY_COLORS["high"]}; font-weight: bold;',
+            'medium': f'background-color: {SEVERITY_BG["medium"]}; color: {SEVERITY_COLORS["medium"]}; border-left: 4px solid {SEVERITY_COLORS["medium"]}; font-weight: bold;',
+            'low': f'background-color: {SEVERITY_BG["low"]}; color: {SEVERITY_COLORS["low"]}; border-left: 4px solid {SEVERITY_COLORS["low"]}; font-weight: bold;',
+        }
+        return risk_styles.get(val, 'color: white;')
 
     def format_online(val):
         return '🟢 Activo' if val == 1 else '💤 Dormido'
 
-    # Preparar el dataframe para mostrar
     display_df = devices_df.copy()
     display_df['is_online'] = display_df['is_online'].apply(format_online)
-    
-    # Convertir string JSON de open_ports a lista real para renderizarla bien
-    import json
+
     def parse_ports(val):
         if not val: return []
         try: return json.loads(val)
         except: return []
-        
+
     display_df['open_ports'] = display_df['open_ports'].apply(parse_ports)
-    
+
     styled_df = display_df.style.map(color_risk, subset=['risk_level'])
-    
+
     st.dataframe(
         styled_df,
         column_config={
@@ -105,31 +106,28 @@ else:
         use_container_width=True
     )
 
-    st.divider()
+    # ── Operaciones individuales ────────────────────────────────
+    render_section_divider("Operaciones Individuales de Nodo")
 
-    # Formulario para editar dispositivos manualmente
-    st.markdown("### 🔧 Operaciones Individuales de Nodo")
-    
     col_sel, col_action = st.columns([1, 1.5])
-    
+
     with col_sel:
-        # Selector de IPs disponibles
         available_ips = devices_df['ip'].dropna().unique().tolist()
-        selected_ip = st.selectbox("Apuntar radar al Dispositivo:", available_ips)
-    
+        selected_ip = st.selectbox("🎯 Apuntar radar al Dispositivo:", available_ips)
+
     with col_action:
         with st.expander("📝 Etiquetado Semántico Manual", expanded=False):
             with st.form("edit_device_form", clear_on_submit=False):
-                st.info("Etiqueta la nevera o el movil para encontrarlo más rápido a gusto visual.")
+                st.info("Etiqueta la nevera o el móvil para encontrarlo más rápido a gusto visual.")
                 new_hostname = st.text_input("Alias (Ej. Portátil-Mamá):")
                 new_notes = st.text_input("Comentarios:")
-                
+
                 submit = st.form_submit_button("Guardar en base de datos")
-                
+
                 if submit and selected_ip:
                     from src.dashboard.utils.data_loader import get_db
                     get_db().update_device_label(selected_ip, new_hostname, new_notes)
-                    st.success(f"Dato persistido.")
+                    st.success("Dato persistido.")
                     st.rerun()
 
         with st.expander("🕵️‍♂️ Nmap Action Scanner (Force Ping)", expanded=False):
@@ -139,10 +137,10 @@ else:
                     with st.spinner(f"Escaneando espectro radiofónico y TCP en {selected_ip}..."):
                         from src.crawler.nmap_scanner import NmapScanner
                         from src.dashboard.utils.data_loader import get_db
-                        
+
                         scanner = NmapScanner(db=get_db())
                         result = scanner.scan_device(selected_ip)
-                        
+
                         if result and (result.get("open_ports") or result.get("os_guess")):
                             get_db().save_device(result)
                             st.success(f"OS Encontrado: {result.get('os_guess', 'Desconocido')}")
@@ -151,7 +149,9 @@ else:
                         else:
                             st.error("El host rebotó todos los paquetes (Stealth Mode / Firewall encendido).")
 
-# -- Auto-Refresh --
+render_footer()
+
+# ── Auto-Refresh ────────────────────────────────────────────────
 if auto_refresh:
     time.sleep(DASHBOARD_REFRESH_RATE)
     st.rerun()

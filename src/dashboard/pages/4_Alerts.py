@@ -1,39 +1,60 @@
 import streamlit as st
 import pandas as pd
 import time
-from src.dashboard.utils.data_loader import load_alerts
+from src.dashboard.utils.data_loader import load_alerts, load_alert_summary
+from src.dashboard.utils.styles import (
+    inject_global_css, render_page_header, render_metric_card,
+    render_section_divider, render_footer, COLORS, SEVERITY_COLORS, SEVERITY_BG
+)
 from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Alertas - IPS/IDS", page_icon="🚨", layout="wide")
-
-st.markdown("""
-<style>
-    .alert-header {
-        background: linear-gradient(90deg, rgba(200,0,0,0.8) 0%, rgba(20,20,20,1) 100%);
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        border-left: 5px solid #ff4b4b;
-        color: white;
-    }
-</style>
-""", unsafe_allow_html=True)
+inject_global_css()
 
 # Toggle de Auto-Refresco
 st.sidebar.markdown(f"⏱️ **Auto-Refresco:** `{DASHBOARD_REFRESH_RATE}s`")
 auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
-st.markdown('<div class="alert-header"><h1>🚨 Centro de Operaciones de Seguridad (SOC)</h1><p>Registro inmutable de ataques clasificados mediante Inteligencia Artificial y vulnerabilidades de firmware.</p></div>', unsafe_allow_html=True)
+# ── Header ──────────────────────────────────────────────────────
+render_page_header(
+    icon="🚨",
+    title="Centro de Operaciones de Seguridad (SOC)",
+    subtitle="Registro inmutable de ataques clasificados mediante Inteligencia Artificial y vulnerabilidades de firmware.",
+    gradient="linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.95) 60%, rgba(10, 14, 26, 1) 100%)",
+    accent="linear-gradient(90deg, var(--accent-red), var(--accent-amber))"
+)
 
-# Filtros
-st.markdown("### 🔎 Motor de Búsqueda y Filtrado")
+# ── Resumen rápido (KPIs) ──────────────────────────────────────
+summary = load_alert_summary()
+total = summary.get("total", 0)
+by_sev = summary.get("by_severity", {})
+critical_count = by_sev.get("critical", 0)
+high_count = by_sev.get("high", 0)
+medium_count = by_sev.get("medium", 0)
+low_count = by_sev.get("low", 0)
+
+col1, col2, col3, col4, col5 = st.columns(5)
+with col1:
+    render_metric_card("📊", "Total Eventos", str(total), accent="blue")
+with col2:
+    render_metric_card("💀", "Críticas", str(critical_count), accent="red", glow=critical_count > 0)
+with col3:
+    render_metric_card("🔥", "Altas", str(high_count), accent="amber", glow=high_count > 0)
+with col4:
+    render_metric_card("⚠️", "Medias", str(medium_count), accent="amber")
+with col5:
+    render_metric_card("ℹ️", "Bajas / Info", str(low_count + by_sev.get("info", 0)), accent="cyan")
+
+# ── Filtros ─────────────────────────────────────────────────────
+render_section_divider("Motor de Búsqueda y Filtrado")
+
 col1, col2, col3 = st.columns([1, 1, 2])
 with col1:
     severity_filter = st.selectbox("Severidad de la Amenaza", ["Todas", "critical", "high", "medium", "low", "info"])
 with col2:
     limit = st.select_slider("Ventana de eventos (Últimos N)", options=[50, 100, 250, 500, 1000], value=100)
 with col3:
-    st.write("<br>", unsafe_allow_html=True)
+    st.write("")
     if st.button("🔄 Refrescar Logs Manualmente", use_container_width=True):
         st.rerun()
 
@@ -41,21 +62,33 @@ severity = None if severity_filter == "Todas" else severity_filter
 alerts_df = load_alerts(limit=limit, severity=severity)
 
 if alerts_df.empty:
-    st.success("✨ ¡Enhorabuena! No hay intrusiones detectadas bajo los filtros actuales en el perímetro de la red.")
+    st.markdown("""
+    <div style="
+        text-align: center; padding: 60px 40px;
+        background: rgba(6, 214, 160, 0.05);
+        border: 1px solid rgba(6, 214, 160, 0.15);
+        border-radius: 16px;
+        margin-top: 20px;
+    ">
+        <div style="font-size: 3rem; margin-bottom: 12px;">✨</div>
+        <div style="color: var(--accent-cyan); font-weight: 600; font-size: 1.1rem;">¡Enhorabuena!</div>
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 6px;">No hay intrusiones detectadas bajo los filtros actuales en el perímetro de la red</div>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    # Formateo visual
+    # Formateo visual con colores del sistema
     def color_severity(val):
-        color = 'transparent'
-        text_color = 'white'
-        if val == 'critical': color, text_color = '#6b0000', '#ffb3b3'
-        elif val == 'high': color, text_color = '#7a3b00', '#ffd699'
-        elif val == 'medium': color, text_color = '#6b6600', '#ffff99'
-        elif val == 'low': color, text_color = '#004d1a', '#99ffb3'
-        elif val == 'info': color, text_color = '#003366', '#99ccff'
-        return f'background-color: {color}; color: {text_color}; border-left: 4px solid {text_color}; font-weight: bold;'
+        sev_styles = {
+            'critical': f'background-color: {SEVERITY_BG["critical"]}; color: {SEVERITY_COLORS["critical"]}; border-left: 4px solid {SEVERITY_COLORS["critical"]}; font-weight: bold;',
+            'high': f'background-color: {SEVERITY_BG["high"]}; color: {SEVERITY_COLORS["high"]}; border-left: 4px solid {SEVERITY_COLORS["high"]}; font-weight: bold;',
+            'medium': f'background-color: {SEVERITY_BG["medium"]}; color: {SEVERITY_COLORS["medium"]}; border-left: 4px solid {SEVERITY_COLORS["medium"]}; font-weight: bold;',
+            'low': f'background-color: {SEVERITY_BG["low"]}; color: {SEVERITY_COLORS["low"]}; border-left: 4px solid {SEVERITY_COLORS["low"]}; font-weight: bold;',
+            'info': f'background-color: {SEVERITY_BG["info"]}; color: {SEVERITY_COLORS["info"]}; border-left: 4px solid {SEVERITY_COLORS["info"]}; font-weight: bold;',
+        }
+        return sev_styles.get(val, 'color: white;')
 
     styled_df = alerts_df.style.map(color_severity, subset=['severity'])
-    
+
     st.dataframe(
         styled_df,
         column_config={
@@ -75,7 +108,9 @@ else:
 
     st.caption("ℹ️ Puedes pasar por encima de las cabeceras de la tabla para buscar, ordenar o descargar los logs en formato `.CSV` para análisis forense.")
 
-# -- Auto-Refresh --
+render_footer()
+
+# ── Auto-Refresh ────────────────────────────────────────────────
 if auto_refresh:
     time.sleep(DASHBOARD_REFRESH_RATE)
     st.rerun()

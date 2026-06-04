@@ -1,100 +1,122 @@
 import streamlit as st
-import plotly.express as px
+import plotly.graph_objects as go
 from src.dashboard.utils.data_loader import load_network_stats
+from src.dashboard.utils.styles import (
+    inject_global_css, render_page_header, render_metric_card,
+    render_section_divider, render_footer, get_plotly_layout, COLORS
+)
 
 st.set_page_config(page_title="Rendimiento de Red - IPS/IDS", page_icon="⚡", layout="wide")
+inject_global_css()
 
-st.markdown("""
-<style>
-    .speed-header {
-        background: radial-gradient(circle at 10% 20%, #1e3c72 0%, #2a5298 90%);
-        padding: 20px;
-        border-radius: 12px;
-        border-right: 5px solid #00b4d8;
-        color: white;
-    }
-    .metric-speed {
-        background: #111;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
-        text-align: center;
-        border-top: 3px solid #f39c12;
-    }
-</style>
-""", unsafe_allow_html=True)
-
+# ── Header ──────────────────────────────────────────────────────
 col_title, col_btn = st.columns([5, 1])
 with col_title:
-    st.markdown("""
-    <div class="speed-header">
-        <h1 style="margin-top:0;">⚡ Rendimiento y Telemetría</h1>
-        <p style="margin-bottom:0; font-size: 1.1em; color: #ced4da;">Monitorización continua del tráfico RAW, ancho de banda saturado y estrés de la Raspberry Pi.</p>
-    </div><br>
-    """, unsafe_allow_html=True)
+    render_page_header(
+        icon="⚡",
+        title="Rendimiento y Telemetría",
+        subtitle="Monitorización continua del tráfico RAW, ancho de banda saturado y estrés de la Raspberry Pi.",
+        gradient="linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(76, 201, 240, 0.08) 100%)",
+        accent="linear-gradient(90deg, var(--accent-amber), var(--accent-cyan))"
+    )
 with col_btn:
-    st.write("") # Espaciado
-    if st.button("🔄 Refrescar Gráficos", use_container_width=True):
+    st.write("")
+    if st.button("🔄 Refrescar", use_container_width=True):
         st.rerun()
 
-# Filtros
+# ── Filtros ─────────────────────────────────────────────────────
 col_filtro, _ = st.columns([1, 3])
-horas = col_filtro.selectbox("🔎 Ventana Temporal:", [1, 3, 6, 12, 24], index=1, format_func=lambda x: f"Últimas {x} horas de captura")
+horas = col_filtro.selectbox(
+    "🔎 Ventana Temporal:",
+    [1, 3, 6, 12, 24],
+    index=1,
+    format_func=lambda x: f"Últimas {x} horas de captura"
+)
 
 stats_df = load_network_stats(limit=1000, hours=horas)
 
 if stats_df.empty:
-    st.info("🕒 Esperando a que el Sniffer llene los bufferes... (Refresque en un minuto)")
+    st.markdown("""
+    <div style="
+        text-align: center; padding: 60px 40px;
+        background: rgba(245, 158, 11, 0.05);
+        border: 1px solid rgba(245, 158, 11, 0.15);
+        border-radius: 16px;
+    ">
+        <div style="font-size: 3rem; margin-bottom: 12px; animation: sentinel-float 3s ease-in-out infinite; display: inline-block;">⏳</div>
+        <div style="color: var(--accent-amber); font-weight: 600; font-size: 1.1rem;">Esperando datos del sniffer...</div>
+        <div style="color: var(--text-muted); font-size: 0.9rem; margin-top: 6px;">Refresca en un minuto para ver las primeras métricas</div>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    # Métricas Top
     current = stats_df.iloc[-1]
-    
+
+    # ── Métricas Top ────────────────────────────────────────────
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.markdown('<div class="metric-speed">', unsafe_allow_html=True)
-        st.metric("Tasa de Transferencia", f"{current['bandwidth_mbps']:.2f} Mbps")
-        st.markdown('</div>', unsafe_allow_html=True)
+        render_metric_card("📡", "Tasa de Transferencia", f"{current['bandwidth_mbps']:.2f} Mbps", accent="amber")
     with col2:
-        st.markdown('<div class="metric-speed" style="border-top: 3px solid #2980b9;">', unsafe_allow_html=True)
-        st.metric("Latencia al Exterior", f"{current['latency_ms']:.1f} ms")
-        st.markdown('</div>', unsafe_allow_html=True)
+        render_metric_card("🌍", "Latencia al Exterior", f"{current['latency_ms']:.1f} ms", accent="blue")
     with col3:
-        st.markdown('<div class="metric-speed" style="border-top: 3px solid #e74c3c;">', unsafe_allow_html=True)
-        st.metric("CPU (Raspberry Pi)", f"{current['cpu_percent']}%")
-        st.markdown('</div>', unsafe_allow_html=True)
+        cpu_val = current['cpu_percent']
+        cpu_accent = "red" if cpu_val > 80 else ("amber" if cpu_val > 50 else "green")
+        render_metric_card("🖥️", "CPU (Raspberry Pi)", f"{cpu_val}%", accent=cpu_accent, glow=cpu_val > 80)
     with col4:
-        st.markdown('<div class="metric-speed" style="border-top: 3px solid #27ae60;">', unsafe_allow_html=True)
-        st.metric("Sockets TCP/UDP", current['active_connections'])
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.divider()
+        render_metric_card("🔗", "Sockets TCP/UDP", str(current['active_connections']), accent="purple")
 
-    # Gráficos de Área con Plotly
-    st.markdown("### 🌊 Histograma de Ancho de Banda")
-    
-    fig_bw = px.area(stats_df, x="timestamp", y="bandwidth_mbps", 
-                    labels={"timestamp": "Escala Temporal", "bandwidth_mbps": "Ancho de Banda (Mbps)"},
-                    color_discrete_sequence=["#8e44ad"],
-                    template="plotly_dark")
-    fig_bw.update_layout(margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-    
+    # ── Gráfico de Ancho de Banda ───────────────────────────────
+    render_section_divider("Histograma de Ancho de Banda")
+
+    fig_bw = go.Figure()
+    fig_bw.add_trace(go.Scatter(
+        x=stats_df["timestamp"], y=stats_df["bandwidth_mbps"],
+        mode='lines',
+        fill='tozeroy',
+        line=dict(color=COLORS["accent_purple"], width=2.5),
+        fillcolor="rgba(124, 58, 237, 0.08)",
+        name="Mbps",
+        hovertemplate="<b>%{y:.2f} Mbps</b><br>%{x}<extra></extra>"
+    ))
+    layout = get_plotly_layout()
+    layout["margin"] = dict(l=0, r=0, t=10, b=0)
+    fig_bw.update_layout(**layout)
     st.plotly_chart(fig_bw, use_container_width=True)
-    
-    st.markdown("### 💻 Esfuerzo de Hardware Host")
+
+    # ── Gráficos de Hardware ────────────────────────────────────
+    render_section_divider("Esfuerzo de Hardware Host")
+
     col_chart1, col_chart2 = st.columns(2)
-    
+
     with col_chart1:
-        fig_cpu = px.line(stats_df, x="timestamp", y="cpu_percent", 
-                        title="Consumo de CPU (%)",
-                        color_discrete_sequence=["#e67e22"],
-                        template="plotly_dark")
-        fig_cpu.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+        fig_cpu = go.Figure()
+        fig_cpu.add_trace(go.Scatter(
+            x=stats_df["timestamp"], y=stats_df["cpu_percent"],
+            mode='lines',
+            line=dict(color=COLORS["accent_amber"], width=2),
+            fill='tozeroy',
+            fillcolor="rgba(245, 158, 11, 0.06)",
+            name="CPU %",
+            hovertemplate="<b>CPU: %{y:.1f}%</b><br>%{x}<extra></extra>"
+        ))
+        layout = get_plotly_layout()
+        layout["title"] = dict(text="Consumo de CPU (%)", font=dict(color=COLORS["text_muted"], size=14))
+        fig_cpu.update_layout(**layout)
         st.plotly_chart(fig_cpu, use_container_width=True)
-        
+
     with col_chart2:
-        fig_mem = px.line(stats_df, x="timestamp", y="memory_percent", 
-                        title="Consumo de Memoria RAM (%)",
-                        color_discrete_sequence=["#27ae60"],
-                        template="plotly_dark")
-        fig_mem.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+        fig_mem = go.Figure()
+        fig_mem.add_trace(go.Scatter(
+            x=stats_df["timestamp"], y=stats_df["memory_percent"],
+            mode='lines',
+            line=dict(color="#22c55e", width=2),
+            fill='tozeroy',
+            fillcolor="rgba(34, 197, 94, 0.06)",
+            name="RAM %",
+            hovertemplate="<b>RAM: %{y:.1f}%</b><br>%{x}<extra></extra>"
+        ))
+        layout = get_plotly_layout()
+        layout["title"] = dict(text="Consumo de Memoria RAM (%)", font=dict(color=COLORS["text_muted"], size=14))
+        fig_mem.update_layout(**layout)
         st.plotly_chart(fig_mem, use_container_width=True)
+
+render_footer()
