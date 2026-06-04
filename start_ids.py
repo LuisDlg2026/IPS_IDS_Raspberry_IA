@@ -147,14 +147,28 @@ def start_backend():
                         
                     # Procesar todos los dispositivos encontrados (Caché + Scapy)
                     discovered_count = 0
+                    
+                    # Inicializamos nmap scanner si no lo tenemos aún 
+                    from src.crawler.nmap_scanner import NmapScanner
+                    nmap_scanner = NmapScanner(db=db)
+                    
                     for ip, mac in discovered_devices.items():
                         # Auditar el dispositivo descubierto (Firmware Crawler)
                         device_info = crawler.audit_device(ip, mac)
                         device_info["is_online"] = 1
                         device_info["risk_level"] = "low" if not device_info.get("needs_update") else "medium"
                         
+                        # Escaneo profundo con Nmap (OS + puertos) de forma asíncrona o sincrona rápida
+                        nmap_result = nmap_scanner.scan_device(ip)
+                        if nmap_result:
+                            if nmap_result.get("os_guess"):
+                                device_info["os_guess"] = nmap_result["os_guess"]
+                            if nmap_result.get("open_ports"):
+                                device_info["open_ports"] = nmap_result["open_ports"]
+                        
                         # Guardar y generar alertas si aplican
                         alert_manager.evaluate_device(device_info)
+                        db.save_device(device_info)
                         discovered_count += 1
                         
                     logger.info(f"Escaneo de red completado: {discovered_count} dispositivos activos encontrados (Caché ARP + Scapy).")

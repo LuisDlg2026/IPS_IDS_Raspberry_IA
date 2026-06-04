@@ -15,8 +15,10 @@ import logging
 import requests
 import socket
 import re
+import subprocess
 from bs4 import BeautifulSoup
 from typing import Dict, Optional, Tuple, List
+from mac_vendor_lookup import MacLookup, VendorNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ class FirmwareCrawler:
 
     def __init__(self, db=None):
         self._db = db
-        # Mapeo de MAC OUI a fabricantes conocidos
+        # Mapeo de MAC OUI a fabricantes conocidos para caché local rápida
         self._vendors = {
             "CC:32:E5": "TP-Link",
             "C0:25:E9": "TP-Link",
@@ -38,7 +40,47 @@ class FirmwareCrawler:
             "DC:A6:32": "Raspberry Pi Foundation",
             "00:0C:29": "VMware",
         }
+        self.mac_lookup = MacLookup()
+        try:
+            self.mac_lookup.update_vendors()
+            logger.info("Base de datos de MACs actualizada.")
+        except Exception as e:
+            logger.warning(f"No se pudo actualizar la BD de MACs local: {e}")
+            
         logger.info("FirmwareCrawler inicializado")
+
+    def _resolve_hostname(self, ip: str) -> Optional[str]:
+        """Resuelve el hostname de un dispositivo por DNS inverso, mDNS o NetBIOS."""
+        # 1. DNS inverso (más universal)
+        try:
+            hostname = socket.gethostbyaddr(ip)[0]
+            if hostname and hostname != ip:
+                return hostname
+        except (socket.herror, socket.gaierror, OSError):
+            pass
+        
+        # 2. mDNS (.local)
+        try:
+            mDNS = f"{ip}.local"
+            hostname = socket.gethostbyaddr(mDNS)[0]
+            if hostname:
+                return hostname
+        except Exception:
+            pass
+        
+        # 3. NetBIOS (solo Windows, requiere nmblookup o similar)
+        try:
+            # timeout para no bloquear
+            result = subprocess.run(
+                ['nmblookup', '-A', ip], capture_output=True, text=True, timeout=2
+            )
+            for line in result.stdout.splitlines():
+                if '<00>' in line and 'GROUP' not in line:
+                    return line.split()[0].strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+        
+        return None
 
     def audit_device(self, ip: str, mac: str = None) -> Dict:
         """
@@ -50,9 +92,12 @@ class FirmwareCrawler:
         logger.info(f"Auditando dispositivo {ip} (MAC: {mac})")
 
         vendor = self._guess_vendor(mac) if mac else "Unknown"
+        hostname = self._resolve_hostname(ip)
+
         device_info = {
             "ip": ip,
             "mac": mac,
+            "hostname": hostname,
             "vendor": vendor,
             "model": "Unknown",
             "current_firmware": "Unknown",
@@ -81,8 +126,16 @@ class FirmwareCrawler:
 
         return device_info
 
+    def _is_locally_administered(self, mac: str) -> bool:
+        """Detecta si una MAC es localmente administrada (sin OUI del fabricante)."""
+        try:
+            first_byte = int(mac.split(":")[0], 16)
+            return bool(first_byte & 0x02)  # Bit U/L (segundo bit del primer byte)
+        except (ValueError, IndexError):
+            return False
+
     def _guess_vendor(self, mac: str) -> str:
-        """Estima el fabricante usando la API pública macvendors.com o caché local."""
+        """Estima el fabricante usando caché DDB local (mac-vendor-lookup) o macvendors.com."""
         if not mac or mac == "unknown":
             return "Unknown"
             
@@ -90,7 +143,21 @@ class FirmwareCrawler:
         if oui in self._vendors:
             return self._vendors[oui]
             
-        # Consultar API online (https://api.macvendors.com/)
+        if self._is_locally_administered(mac):
+            logger.debug(f"MAC local administrada {mac}, fabricante desconocido.")
+            return "Local / Random"
+            
+        # 1. Utilizar archivo OUI offline (rápido y sin red)
+        try:
+            vendor = self.mac_lookup.lookup(mac)
+            self._vendors[oui] = vendor
+            return vendor
+        except VendorNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug(f"Error consultando base de datos MAC offline: {e}")
+
+        # 2. Consultar API online (https://api.macvendors.com/)
         import time
         try:
             logger.debug(f"Consultando fabricante para MAC {mac} en macvendors.com...")

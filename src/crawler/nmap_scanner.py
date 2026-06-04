@@ -38,10 +38,11 @@ class NmapScanner:
             
         logger.info(f"Iniciando escaneo profundo Nmap para {ip}...")
         try:
-            # -sV: Detección de versión de servicios (menos agresiva que -O)
+            # -sV: Detección de versión de servicios
+            # -O: Detección de Sistema Operativo (OS Fingerprinting, requiere Root)
             # -F: Escaneo rápido (top 100 puertos)
             # -T3: Velocidad normal para no hacer saltar alarmas
-            self.nm.scan(hosts=ip, arguments='-sV -F -T3')
+            self.nm.scan(hosts=ip, arguments='-sV -O -F -T3')
             
             if ip not in self.nm.all_hosts():
                 logger.warning(f"Nmap no encontró el host {ip} o no respondió.")
