@@ -8,7 +8,6 @@ from scapy.all import ARP, Ether, srp, conf
 
 from src.detection.detector import IDSDetector
 from src.utils.storage import Database
-from src.utils.storage import Database
 from src.utils.network_stats import NetworkMonitor
 from src.crawler.firmware_crawler import FirmwareCrawler
 from src.crawler.device_alerts import DeviceAlertManager
@@ -23,9 +22,12 @@ def start_backend():
         # 1. Conectar a la base de datos
         db = Database()
         
-        # 1.5. Limpiar base de datos de pruebas si existe la variable de entorno o por defecto al iniciar real
-        logger.info("Limpiando dispositivos antiguos para descubrir red real...")
-        db.cleanup(days=0) # Borramos lo antiguo o forzamos nueva vista
+        # 1.5. Preparar red para descubrimiento fresco (sin borrar histórico de seguridad)
+        logger.info("Reseteando estado online de dispositivos para redescubrir red...")
+        db.reset_devices_online_status()
+        
+        # Limpiar solo registros realmente antiguos (>30 días por defecto)
+        db.cleanup()
         
         # 2. Iniciar el monitor de estadísticas reales de la Raspberry Pi
         logger.info("Iniciando recolección de estadísticas reales (CPU, RAM, Ancho de banda)...")

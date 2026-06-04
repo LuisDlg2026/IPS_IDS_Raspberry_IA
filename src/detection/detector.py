@@ -244,14 +244,16 @@ class IDSDetector:
 
     def _process_window(self):
         """Procesa una ventana temporal de flujos."""
-        flows = self._aggregator.get_all_flow_features()
-        self._aggregator.clear()
+        # Swap atómico: obtiene features y limpia en una sola operación thread-safe
+        flows = self._aggregator.swap_and_get_features()
 
         if not flows:
             return
 
         self._stats["windows_processed"] += 1
         self._stats["flows_analyzed"] += len(flows)
+
+        n_attacks = 0
 
         for flow_data in flows:
             features = flow_data["features"]
@@ -266,10 +268,11 @@ class IDSDetector:
                 except Exception as e:
                     logger.error(f"Error en callback de flujo: {e}")
 
-            # Predicción
+            # Predicción (única inferencia por flujo)
             result = self._engine.predict(features)
 
             if result["is_attack"] and result["confidence"] >= self._confidence_threshold:
+                n_attacks += 1
                 self._stats["attacks_detected"] += 1
 
                 alert = Alert(
@@ -298,8 +301,6 @@ class IDSDetector:
             else:
                 self._stats["normal_flows"] += 1
 
-        n_attacks = sum(1 for f in flows
-                        if self._engine.predict(f["features"])["is_attack"])
         logger.info(
             f"Ventana procesada: {len(flows)} flujos, "
             f"{n_attacks} ataques detectados"

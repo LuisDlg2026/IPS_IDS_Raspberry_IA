@@ -21,6 +21,7 @@ Features del modelo (36):
 
 import logging
 import time
+import threading
 from collections import defaultdict
 from typing import Dict, List, Optional, Any
 
@@ -37,6 +38,8 @@ class FlowAggregator:
     """
 
     def __init__(self):
+        # Lock para proteger el estado mutable compartido entre hilos
+        self._lock = threading.Lock()
         # Almacenar paquetes por flujo
         self._flows: Dict[str, List[dict]] = defaultdict(list)
         self._flow_start_times: Dict[str, float] = {}
@@ -60,25 +63,28 @@ class FlowAggregator:
             flow_key si el paquete fue añadido, None si fue descartado
         """
         try:
+            # Extraer info fuera del lock (parseo scapy es costoso)
             pkt_info = self._extract_packet_info(packet)
             if pkt_info is None:
                 return None
 
             flow_key = pkt_info.get("flow_key", "unknown")
-            self._flows[flow_key].append(pkt_info)
 
-            if flow_key not in self._flow_start_times:
-                self._flow_start_times[flow_key] = time.time()
+            with self._lock:
+                self._flows[flow_key].append(pkt_info)
 
-            # Trackear flags TCP
-            if pkt_info.get("proto") == "TCP":
-                flags = pkt_info.get("tcp_flags_int", 0)
-                if flags & 0x02 and not (flags & 0x10):  # SYN sin ACK
-                    self._syn_counts[flow_key] += 1
-                if flags & 0x02 and flags & 0x10:  # SYN+ACK
-                    self._synack_counts[flow_key] += 1
-                if flags & 0x04:  # RST
-                    self._rst_counts[flow_key] += 1
+                if flow_key not in self._flow_start_times:
+                    self._flow_start_times[flow_key] = time.time()
+
+                # Trackear flags TCP
+                if pkt_info.get("proto") == "TCP":
+                    flags = pkt_info.get("tcp_flags_int", 0)
+                    if flags & 0x02 and not (flags & 0x10):  # SYN sin ACK
+                        self._syn_counts[flow_key] += 1
+                    if flags & 0x02 and flags & 0x10:  # SYN+ACK
+                        self._synack_counts[flow_key] += 1
+                    if flags & 0x04:  # RST
+                        self._rst_counts[flow_key] += 1
 
             return flow_key
 
@@ -172,28 +178,149 @@ class FlowAggregator:
         Returns:
             Lista de dicts con flow_key, features, y metadata
         """
+        with self._lock:
+            flow_keys = list(self._flows.keys())
+
         results = []
-        for flow_key in list(self._flows.keys()):
+        for flow_key in flow_keys:
             features = self.get_flow_features(flow_key)
-            packets = self._flows[flow_key]
+            with self._lock:
+                packets = self._flows.get(flow_key, [])
+                results.append({
+                    "flow_key": flow_key,
+                    "features": features,
+                    "n_packets": len(packets),
+                    "start_time": self._flow_start_times.get(flow_key, 0),
+                    "src_ip": packets[0].get("src_ip", "unknown") if packets else "unknown",
+                    "dst_ip": packets[0].get("dst_ip", "unknown") if packets else "unknown",
+                })
+        return results
+
+    def swap_and_get_features(self) -> List[Dict[str, Any]]:
+        """
+        Swap atómico + cálculo de features.
+
+        Intercambia todo el estado interno por estructuras vacías bajo lock
+        (operación rápida), y luego calcula features sobre el snapshot sin
+        mantener el lock. Esto elimina la race condition entre
+        get_all_flow_features() y clear().
+
+        Returns:
+            Lista de dicts con flow_key, features, y metadata
+        """
+        # 1. Swap atómico bajo lock — solo reasignaciones de referencia
+        with self._lock:
+            old_flows = self._flows
+            old_start_times = self._flow_start_times
+            old_syn = self._syn_counts
+            old_synack = self._synack_counts
+            old_rst = self._rst_counts
+            old_last_udp = self._last_udp_time
+
+            self._flows = defaultdict(list)
+            self._flow_start_times = {}
+            self._syn_counts = defaultdict(int)
+            self._synack_counts = defaultdict(int)
+            self._rst_counts = defaultdict(int)
+            self._last_udp_time = {}
+
+        # 2. Calcular features sobre el snapshot (sin lock, no bloquea captura)
+        results = []
+        for flow_key, packets in old_flows.items():
+            if not packets:
+                continue
+
+            last_pkt = packets[-1]
+            features = self._compute_flow_features(
+                flow_key, packets, last_pkt,
+                old_syn, old_synack, old_rst
+            )
             results.append({
                 "flow_key": flow_key,
                 "features": features,
                 "n_packets": len(packets),
-                "start_time": self._flow_start_times.get(flow_key, 0),
-                "src_ip": packets[0].get("src_ip", "unknown") if packets else "unknown",
-                "dst_ip": packets[0].get("dst_ip", "unknown") if packets else "unknown",
+                "start_time": old_start_times.get(flow_key, 0),
+                "src_ip": packets[0].get("src_ip", "unknown"),
+                "dst_ip": packets[0].get("dst_ip", "unknown"),
             })
         return results
 
+    def _compute_flow_features(
+        self, flow_key: str, packets: List[dict], last_pkt: dict,
+        syn_counts: Dict[str, int], synack_counts: Dict[str, int],
+        rst_counts: Dict[str, int]
+    ) -> Dict[str, float]:
+        """
+        Calcula las 36 features del modelo a partir de un snapshot de flujo.
+
+        Versión stateless que opera sobre datos ya extraídos, usada por
+        swap_and_get_features() para trabajar sin lock.
+        """
+        features = {}
+
+        # ─── ARP ────────────────────────────────────────────────
+        features["arp.opcode"] = last_pkt.get("arp_opcode", 0)
+
+        # ─── ICMP ───────────────────────────────────────────────
+        features["icmp.seq_le"] = last_pkt.get("icmp_seq", 0)
+        features["icmp.transmit_timestamp"] = last_pkt.get("icmp_ts", 0)
+        features["icmp.checksum"] = last_pkt.get("icmp_checksum", 0)
+
+        # ─── MQTT ───────────────────────────────────────────────
+        features["mqtt.protoname"] = last_pkt.get("mqtt_protoname", 0)
+        features["mqtt.topic"] = last_pkt.get("mqtt_topic", 0)
+        features["mqtt.conack.flags"] = last_pkt.get("mqtt_conack_flags", 0)
+        features["mqtt.msg"] = last_pkt.get("mqtt_msg", 0)
+
+        # ─── TCP ────────────────────────────────────────────────
+        features["tcp.options"] = last_pkt.get("tcp_options_len", 0)
+        features["tcp.dstport"] = last_pkt.get("dport", 0)
+        features["tcp.srcport"] = last_pkt.get("sport", 0)
+        features["tcp.len"] = last_pkt.get("tcp_len", 0)
+        features["tcp.checksum"] = last_pkt.get("tcp_checksum", 0)
+        features["tcp.seq"] = last_pkt.get("tcp_seq", 0)
+        features["tcp.ack"] = last_pkt.get("tcp_ack", 0)
+        features["tcp.ack_raw"] = last_pkt.get("tcp_ack", 0)
+        features["tcp.flags"] = last_pkt.get("tcp_flags_int", 0)
+        features["tcp.flags.ack"] = 1 if (last_pkt.get("tcp_flags_int", 0) & 0x10) else 0
+        features["tcp.payload"] = last_pkt.get("payload_len", 0)
+
+        # Features de conexión TCP (conteos por flujo)
+        features["tcp.connection.syn"] = syn_counts.get(flow_key, 0)
+        features["tcp.connection.synack"] = synack_counts.get(flow_key, 0)
+        features["tcp.connection.rst"] = rst_counts.get(flow_key, 0)
+
+        # ─── UDP ────────────────────────────────────────────────
+        features["udp.port"] = last_pkt.get("dport", 0) if last_pkt.get("proto") == "UDP" else 0
+        features["udp.time_delta"] = last_pkt.get("udp_time_delta", 0)
+        features["udp.stream"] = self._udp_stream_map.get(flow_key, 0)
+
+        # ─── DNS ────────────────────────────────────────────────
+        features["dns.qry.name"] = last_pkt.get("dns_qry_name_hash", 0)
+        features["dns.qry.name.len"] = last_pkt.get("dns_qry_name_len", 0)
+        features["dns.qry.qu"] = last_pkt.get("dns_qry_qu", 0)
+
+        # ─── HTTP ───────────────────────────────────────────────
+        features["http.request.version"] = last_pkt.get("http_version", 0)
+        features["http.request.method"] = last_pkt.get("http_method", 0)
+        features["http.response"] = last_pkt.get("http_response", 0)
+        features["http.request.full_uri"] = last_pkt.get("http_uri_hash", 0)
+        features["http.file_data"] = last_pkt.get("http_file_data_len", 0)
+        features["http.referer"] = last_pkt.get("http_referer_hash", 0)
+        features["http.content_length"] = last_pkt.get("http_content_length", 0)
+        features["http.request.uri.query"] = last_pkt.get("http_uri_query_hash", 0)
+
+        return features
+
     def clear(self):
         """Limpia todos los flujos acumulados."""
-        self._flows.clear()
-        self._flow_start_times.clear()
-        self._syn_counts.clear()
-        self._synack_counts.clear()
-        self._rst_counts.clear()
-        self._last_udp_time.clear()
+        with self._lock:
+            self._flows.clear()
+            self._flow_start_times.clear()
+            self._syn_counts.clear()
+            self._synack_counts.clear()
+            self._rst_counts.clear()
+            self._last_udp_time.clear()
 
     def _extract_packet_info(self, packet) -> Optional[dict]:
         """

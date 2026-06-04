@@ -339,6 +339,22 @@ class Database:
             finally:
                 conn.close()
 
+    def reset_devices_online_status(self):
+        """Marca todos los dispositivos como offline para redescubrimiento.
+
+        Se usa al arrancar el sistema para forzar que el escáner ARP
+        redescubra qué dispositivos están realmente activos, sin borrar
+        el histórico (first_seen, vendor, hostname, etc.).
+        """
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute("UPDATE devices SET is_online = 0")
+                conn.commit()
+                logger.info("Dispositivos marcados como offline para redescubrimiento")
+            finally:
+                conn.close()
+
     def update_device_label(self, ip: str, new_hostname: str, new_notes: str):
         """Permite al usuario editar manualmente el nombre o notas de un dispositivo."""
         with self._lock:
@@ -482,7 +498,19 @@ class Database:
     # ─── MANTENIMIENTO ──────────────────────────────────────
 
     def cleanup(self, days: int = 30):
-        """Elimina registros antiguos."""
+        """Elimina registros más antiguos que `days` días.
+
+        Args:
+            days: Antigüedad mínima en días para borrar. Debe ser >= 1.
+                  El default de 30 días conserva un mes de histórico.
+        """
+        if days < 1:
+            logger.warning(
+                f"cleanup(days={days}) ignorado: no se permite borrar todo el histórico. "
+                f"Usa days>=1 para limpiar datos antiguos."
+            )
+            return
+
         with self._lock:
             conn = self._get_conn()
             try:
@@ -495,7 +523,7 @@ class Database:
                     )
                 conn.commit()
                 conn.execute("VACUUM")
-                logger.info(f"Limpieza: eliminados registros > {days} dias")
+                logger.info(f"Limpieza: eliminados registros > {days} días")
             finally:
                 conn.close()
 

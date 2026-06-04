@@ -169,15 +169,17 @@ class InferenceEngine:
             prediction = self._label_encoder.inverse_transform([y_pred])[0]
             
             # Probabilidades (si el modelo las soporta)
-            probabilities = {}
-            confidence = 1.0
             if hasattr(self._model, 'predict_proba'):
                 proba = self._model.predict_proba(X)[0]
-            confidence = float(np.max(proba))
-            probabilities = {
-                cls: round(float(p), 4)
-                for cls, p in zip(self._classes, proba)
-            }
+                confidence = float(np.max(proba))
+                probabilities = {
+                    cls: round(float(p), 4)
+                    for cls, p in zip(self._classes, proba)
+                }
+            else:
+                # Modelo sin probabilidades: confianza máxima, sin desglose
+                confidence = 1.0
+                probabilities = {}
 
         inference_time = time.perf_counter() - t_start
         inference_ms = inference_time * 1000
