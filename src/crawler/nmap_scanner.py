@@ -39,10 +39,11 @@ class NmapScanner:
         logger.info(f"Iniciando escaneo profundo Nmap para {ip}...")
         try:
             # -sV: Detección de versión de servicios
-            # -O: Detección de Sistema Operativo (OS Fingerprinting, requiere Root)
+            # -O: Detección de Sistema Operativo (requiere Root)
             # -F: Escaneo rápido (top 100 puertos)
-            # -T3: Velocidad normal para no hacer saltar alarmas
-            self.nm.scan(hosts=ip, arguments='-sV -O -F -T3')
+            # -T4: Velocidad rápida
+            # -Pn: Ignorar el ping (imprescindible para móviles o Windows con Firewall cerrado)
+            self.nm.scan(hosts=ip, arguments='-sV -O -F -T4 -Pn --host-timeout 30s')
             
             if ip not in self.nm.all_hosts():
                 logger.warning(f"Nmap no encontró el host {ip} o no respondió.")
@@ -50,6 +51,13 @@ class NmapScanner:
                 
             host_data = self.nm[ip]
             
+            # Extraer hostname de Nmap si está disponible (DHCP / DNS inverso)
+            hostname = None
+            if 'hostnames' in host_data and len(host_data['hostnames']) > 0:
+                name = host_data['hostnames'][0].get('name')
+                if name:
+                    hostname = name
+
             # Extraer puertos abiertos
             open_ports = []
             if 'tcp' in host_data:
@@ -75,9 +83,10 @@ class NmapScanner:
             result = {
                 "ip": ip,
                 "open_ports": open_ports,
-                "os_guess": os_guess
+                "os_guess": os_guess,
+                "hostname": hostname
             }
-            logger.info(f"Escaneo Nmap completado para {ip}: OS={os_guess}, Puertos={open_ports}")
+            logger.info(f"Escaneo Nmap completado para {ip}: OS={os_guess}, Puertos={open_ports}, Hostname={hostname}")
             return result
             
         except Exception as e:

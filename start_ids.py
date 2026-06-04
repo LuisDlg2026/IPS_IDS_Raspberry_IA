@@ -165,6 +165,8 @@ def start_backend():
                                 device_info["os_guess"] = nmap_result["os_guess"]
                             if nmap_result.get("open_ports"):
                                 device_info["open_ports"] = nmap_result["open_ports"]
+                            if nmap_result.get("hostname") and not device_info.get("hostname"):
+                                device_info["hostname"] = nmap_result["hostname"]
                         
                         # Guardar y generar alertas si aplican
                         alert_manager.evaluate_device(device_info)
