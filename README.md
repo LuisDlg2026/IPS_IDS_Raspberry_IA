@@ -61,7 +61,6 @@ El repositorio se organiza separando claramente el código fuente de la document
 
 ```text
 IPS_IDS_Raspberry_IA/
-├── archivos/           # 📝 Documentación adicional y planificación
 ├── data/               # 📊 Datasets y modelos de ML entrenados
 ├── docs/               # 📄 Memorias, diagramas y recursos LaTeX/Office
 ├── logs/               # 📁 Registros de ejecución y capturas
