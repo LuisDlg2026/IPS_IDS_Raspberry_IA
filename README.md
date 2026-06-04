@@ -69,15 +69,15 @@ IPS_IDS_Raspberry_IA/
 
 | Sprint | Tema | Duración | Estado |
 |--------|------|----------|--------|
-| **Sprint 0** | Configuración base, estructura de carpetas, setup Python | Semana 1-2 | 🔄 En progreso |
-| **Sprint 1** | Captura y procesamiento de datos de red | Semana 3-4 | ⏳ Pendiente |
-| **Sprint 2** | Exploración y análisis de datasets (EDA) | Semana 5-6 | ⏳ Pendiente |
-| **Sprint 3** | Ingeniería de características y preprocesamiento | Semana 7-8 | ⏳ Pendiente |
-| **Sprint 4** | Implementación ML: modelo base y baseline | Semana 9-10 | ⏳ Pendiente |
-| **Sprint 5** | Optimización y tunning de modelos | Semana 11-12 | ⏳ Pendiente |
-| **Sprint 6** | Backend API REST y almacenamiento | Semana 13-14 | ⏳ Pendiente |
-| **Sprint 7** | Dashboard Streamlit e integración completa | Semana 15-16 | ⏳ Pendiente |
-| **Sprint 8** | Testing en Raspberry Pi y optimización hw | Semana 17-18 | ⏳ Pendiente |
+| **Sprint 0** | Configuración base, estructura de carpetas, setup Python | Semana 1-2 | ✅ Completado |
+| **Sprint 1** | Captura y procesamiento de datos de red | Semana 3-4 | ✅ Completado |
+| **Sprint 2** | Exploración y análisis de datasets (EDA) | Semana 5-6 | ✅ Completado |
+| **Sprint 3** | Ingeniería de características y preprocesamiento | Semana 7-8 | ✅ Completado |
+| **Sprint 4** | Implementación ML: modelo base y baseline | Semana 9-10 | ✅ Completado |
+| **Sprint 5** | Optimización y tunning de modelos | Semana 11-12 | ✅ Completado |
+| **Sprint 6** | Backend API REST y almacenamiento | Semana 13-14 | ✅ Completado |
+| **Sprint 7** | Dashboard Streamlit e integración completa | Semana 15-16 | ✅ Completado |
+| **Sprint 8** | Testing en Raspberry Pi y optimización hw | Semana 17-18 | ✅ Completado |
 | **Sprint 9** | Documentación final, ajustes y defensa | Semana 19-20 | ⏳ Pendiente |
 
 ## 🛠️ Requisitos del Sistema
@@ -97,40 +97,71 @@ IPS_IDS_Raspberry_IA/
 ## 📂 Estructura del Proyecto
 
 
-## 🔧 Instalación y Configuración
+## � Despliegue con Docker (🚀 Recomendado para Raspberry Pi)
+
+El despliegue en la Raspberry (o servidores on-premise) se realiza mejor mediante Docker. Esto garantiza un aislamiento limpio y solventa la gestión de dependencias de sistema complejas (como **Nmap** para escaneo activo, bases de datos IEEE OUI locales, y librerías del sniffer RAW).
 
 ### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-usuario/IPS_IDS_Raspberry_IA.git
+git clone https://github.com/LuisIgnaci0/IPS_IDS_Raspberry_IA.git
 cd IPS_IDS_Raspberry_IA
 ```
 
-### 2. Crear entorno virtual
+### 2. Iniciar el contenedor
+Ejecuta el siguiente comando para construir la imagen y lanzarla en background. Si estás conectado a la red mediante Wi-Fi en lugar del puerto Ethernet (`eth0`), deberás sobrescribir la interfaz a `wlan0`:
+```bash
+# Opción Ethernet (Defecto)
+sudo docker-compose up --build -d
+
+# Opción Wi-Fi
+sudo IDS_CAPTURE_IFACE=wlan0 docker-compose up --build -d
+```
+
+### 3. Revisar logs (Opcional)
+Para comprobar que Nmap, ARP Spoofer y el modelo ML se inician correctamente:
+```bash
+sudo docker-compose logs -f
+```
+
+---
+
+## 🔧 Instalación Nativa (Desarrollo local / Debugging)
+
+Si quieres trabajar en tu máquina personal para programar y explorar modelos.
+
+### 1. Requisitos del sistema
+En Linux/Raspberry, vas a requerir los headers de red.
+```bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip libpcap-dev nmap samba-common-bin
+```
+
+### 2. Crear entorno virtual e instalar dependencias
 ```bash
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # o en Windows (PowerShell):
-.\venv\Scripts\Activate.ps1
-```
+# .\venv\Scripts\Activate.ps1
 
-### 3. Instalar dependencias
-```bash
 pip install --upgrade pip
 pip install -r src/requirements.txt
 ```
 
-### 4. Verificar instalación
-```bash
-python -c "import capture, ml, dashboard, utils; print('✅ Imports OK')"
-```
-
-### 5. Iniciar desarrollo
+### 3. Iniciar desarrollo
 - **Exploración:** `jupyter notebook` en la carpeta `notebooks/`
-- **Dashboard:** `streamlit run src/dashboard/app.py`
+- **Dashboard Independiente:** `streamlit run src/dashboard/app.py`
 - **Tests:** `pytest tests/unit/` y `pytest tests/integration/`
 
 
 ## 📊 Uso
+
+Una vez que el sistema se está ejecutando (por Docker o mediante `sudo -E venv/bin/python start_ids.py` en nativo), el **Dashboard Integral** estará accesible desde el navegador web de cualquier dispositivo conectado a tu red local en:
+
+👉 **http://<IP_DE_LA_RASPBERRY>:8501** (Por ejemplo: `http://192.168.1.100:8501`)
+
+### Para detener el servicio:
+- **Docker:** `sudo docker-compose down`
+- **Nativo (venv):** Usa `Ctrl+C` en la terminal.
 
 
 
