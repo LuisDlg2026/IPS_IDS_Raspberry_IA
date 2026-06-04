@@ -6,55 +6,74 @@ from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Alertas - IPS/IDS", page_icon="🚨", layout="wide")
 
+st.markdown("""
+<style>
+    .alert-header {
+        background: linear-gradient(90deg, rgba(200,0,0,0.8) 0%, rgba(20,20,20,1) 100%);
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border-left: 5px solid #ff4b4b;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Toggle de Auto-Refresco
-st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+st.sidebar.markdown(f"⏱️ **Auto-Refresco:** `{DASHBOARD_REFRESH_RATE}s`")
 auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
-st.title("🚨 Historial de Alertas de Seguridad")
-st.markdown("Registro de ataques detectados por el modelo ML y vulnerabilidades encontradas por la auditoría.")
+st.markdown('<div class="alert-header"><h1>🚨 Centro de Operaciones de Seguridad (SOC)</h1><p>Registro inmutable de ataques clasificados mediante Inteligencia Artificial y vulnerabilidades de firmware.</p></div>', unsafe_allow_html=True)
 
 # Filtros
-col1, col2 = st.columns([1, 1])
+st.markdown("### 🔎 Motor de Búsqueda y Filtrado")
+col1, col2, col3 = st.columns([1, 1, 2])
 with col1:
-    severity_filter = st.selectbox("Filtrar por Severidad", ["Todas", "critical", "high", "medium", "low", "info"])
+    severity_filter = st.selectbox("Severidad de la Amenaza", ["Todas", "critical", "high", "medium", "low", "info"])
 with col2:
-    limit = st.slider("Límite de registros", 50, 500, 100)
+    limit = st.select_slider("Ventana de eventos (Últimos N)", options=[50, 100, 250, 500, 1000], value=100)
+with col3:
+    st.write("<br>", unsafe_allow_html=True)
+    if st.button("🔄 Refrescar Logs Manualmente", use_container_width=True):
+        st.rerun()
 
 severity = None if severity_filter == "Todas" else severity_filter
 alerts_df = load_alerts(limit=limit, severity=severity)
 
 if alerts_df.empty:
-    st.success("No hay alertas registradas que coincidan con los filtros.")
+    st.success("✨ ¡Enhorabuena! No hay intrusiones detectadas bajo los filtros actuales en el perímetro de la red.")
 else:
     # Formateo visual
     def color_severity(val):
-        color = 'white'
-        if val == 'critical': color = '#ff4b4b'
-        elif val == 'high': color = '#ffa421'
-        elif val == 'medium': color = '#ffe312'
-        elif val == 'low': color = '#21c354'
-        elif val == 'info': color = '#00a8e8'
-        return f'background-color: {color}; color: black; font-weight: bold'
+        color = 'transparent'
+        text_color = 'white'
+        if val == 'critical': color, text_color = '#6b0000', '#ffb3b3'
+        elif val == 'high': color, text_color = '#7a3b00', '#ffd699'
+        elif val == 'medium': color, text_color = '#6b6600', '#ffff99'
+        elif val == 'low': color, text_color = '#004d1a', '#99ffb3'
+        elif val == 'info': color, text_color = '#003366', '#99ccff'
+        return f'background-color: {color}; color: {text_color}; border-left: 4px solid {text_color}; font-weight: bold;'
 
     styled_df = alerts_df.style.map(color_severity, subset=['severity'])
     
     st.dataframe(
         styled_df,
         column_config={
-            "id": st.column_config.TextColumn("ID Alerta", width="medium"),
-            "timestamp": st.column_config.DatetimeColumn("Fecha/Hora", format="DD/MM/YYYY HH:mm:ss"),
-            "attack_type": st.column_config.TextColumn("Tipo de Amenaza"),
-            "confidence": st.column_config.ProgressColumn("Confianza ML", min_value=0, max_value=1, format="%.2f"),
-            "severity": st.column_config.TextColumn("Severidad"),
-            "src_ip": st.column_config.TextColumn("IP Origen"),
-            "dst_ip": st.column_config.TextColumn("IP Destino"),
-            "n_packets": "Paquetes",
+            "id": st.column_config.TextColumn("Hash de Alerta", width="medium"),
+            "timestamp": st.column_config.DatetimeColumn("Marca de Tiempo", format="DD/MM/YY - HH:mm:ss"),
+            "attack_type": st.column_config.TextColumn("Vector de Ataque (Etiqueta)"),
+            "confidence": st.column_config.ProgressColumn("Certidumbre ML", min_value=0, max_value=1, format="%.2f"),
+            "severity": st.column_config.TextColumn("Nivel de Gravedad"),
+            "src_ip": st.column_config.TextColumn("Vector Origen (IP)"),
+            "dst_ip": st.column_config.TextColumn("Víctima (IP)"),
+            "n_packets": st.column_config.NumberColumn("Carga (Paquetes)"),
         },
+        height=600,
         hide_index=True,
         use_container_width=True
     )
 
-    st.info("Tip: Usa la opción 'Descargar como CSV' en la parte superior derecha de la tabla para exportar los datos.")
+    st.caption("ℹ️ Puedes pasar por encima de las cabeceras de la tabla para buscar, ordenar o descargar los logs en formato `.CSV` para análisis forense.")
 
 # -- Auto-Refresh --
 if auto_refresh:

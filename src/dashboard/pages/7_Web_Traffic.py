@@ -7,19 +7,43 @@ from src.config import DASHBOARD_REFRESH_RATE
 
 st.set_page_config(page_title="Tráfico Web (DPI) - IPS/IDS", page_icon="🌐", layout="wide")
 
+st.markdown("""
+<style>
+    .dpi-header {
+        background: linear-gradient(135deg, #1b263b 0%, #0d1b2a 100%);
+        padding: 20px;
+        border-radius: 12px;
+        color: white;
+        border: 1px solid #415a77;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .metric-card {
+        background-color: #1e1e1e;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        border-bottom: 2px solid #e0e1dd;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Toggle de Auto-Refresco
-st.sidebar.markdown(f"**Auto-Refresco: {DASHBOARD_REFRESH_RATE}s**")
+st.sidebar.markdown(f"⏱️ **Auto-Refresco:** `{DASHBOARD_REFRESH_RATE}s`")
 auto_refresh = st.sidebar.toggle("Habilitar Auto-Refresco", value=True)
 
-st.title("🌐 Auditoría de Tráfico Web (DPI)")
-st.markdown("Monitorización en tiempo real de la navegación (Capa 7), extrayendo dominios visitados, consultas DNS, transferencias FTP y tráfico de correo, usando Inspección Profunda de Paquetes.")
+st.markdown("""
+<div class="dpi-header">
+    <h1 style="margin-top:0;">🌐 Auditoría de Navegación y Deep Packet Inspection</h1>
+    <p style="font-size: 1.1em; color: #a9bcd0;">Inspección de tráfico de capa de Aplicación (Capa 7 OSI) capturado mediante SNI e interrogatorios DNS nativos.</p>
+</div><br>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns([8, 2])
 with col2:
     if auto_refresh:
-        st.info("Actualización automática activada 🔄")
+        st.info("🔄 Activo (Streaming)")
     else:
-        st.warning("Actualización pausada ⏸️")
+        st.warning("⏸️ Modo Historico")
 
 # Filtros
 devices_df = load_devices()
@@ -29,19 +53,19 @@ if not devices_df.empty:
 
 col_f1, col_f2 = st.columns(2)
 with col_f1:
-    selected_ip = st.selectbox("Filtrar por IP Origen:", device_ips)
+    selected_ip = st.selectbox("📍 Rastrear nodo concreto (IP Origen):", device_ips)
     
 with col_f2:
-    search_query = st.text_input("🔍 Buscar dominio o protocolo:", "")
+    search_query = st.text_input("🔍 Buscar término, app o protocolo (ej: whatsapp, netflix, DNS):", "")
 
 st.divider()
 
 # Cargar y mostrar datos
-with st.spinner("Leyendo historial de navegación..."):
+with st.spinner("Decodificando buffers de tráfico..."):
     df = load_web_traffic(limit=1000)
 
 if df.empty:
-    st.info("No se ha detectado tráfico web todavía. Navega por alguna página web o realiza una petición DNS desde algún dispositivo de la red.")
+    st.info("Aún no hay intercepciones de navegación HTTP/S o DNS en la base de datos.")
 else:
     # Aplicar filtros
     if selected_ip != "Todas las IPs":
@@ -55,21 +79,21 @@ else:
         df = df[mask]
 
     if df.empty:
-        st.warning("No hay registros que coincidan con los filtros.")
+        st.warning("No hay registros que coincidan con los filtros de búsqueda.")
     else:
         # Colores por protocolo para la interfaz
         def color_protocol(val):
             color = ""
             if val == "DNS":
-                color = "color: #3498db"
+                color = "color: #00b4d8; font-weight: bold;"
             elif val == "HTTPS":
-                color = "color: #2ecc71"
+                color = "color: #21c354; font-weight: bold;"
             elif val == "HTTP":
-                color = "color: #f1c40f"
+                color = "color: #ffa421; font-weight: bold;"
             elif val == "FTP":
-                color = "color: #e67e22"
+                color = "color: #ff4b4b; font-weight: bold;"
             elif val == "SMTP":
-                color = "color: #9b59b6"
+                color = "color: #9b59b6; font-weight: bold;"
             return color
 
         # Formatear la tabla
@@ -79,7 +103,7 @@ else:
             "src_ip": "Origen",
             "dst_ip": "Destino",
             "protocol": "Protocolo",
-            "domain_url": "Dominio / URL / Comando"
+            "domain_url": "Dominio Resoluto / Petición"
         }, inplace=True)
         
         # Ordenar por fecha descendente
@@ -92,23 +116,28 @@ else:
             height=600
         )
 
-        st.caption(f"Mostrando {len(display_df)} registros de navegación.")
+        st.caption(f"Visualizando spool temporal: **{len(display_df)} tramas extraídas**.")
 
 # Métricas rápidas
 if not df.empty:
     st.divider()
-    st.subheader("Resumen Estadístico")
+    st.markdown("### 📊 Inteligencia de Navegación Extraída")
     
     m1, m2, m3 = st.columns(3)
     
     with m1:
-        st.metric("Total Registros Web", len(df))
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric("Total Intercepciones Hoy", len(df))
+        st.markdown('</div>', unsafe_allow_html=True)
         
     with m2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         top_protocol = df["protocol"].value_counts().index[0] if not df["protocol"].empty else "N/A"
-        st.metric("Protocolo más usado", top_protocol)
+        st.metric("Protocolo Dominante", top_protocol)
+        st.markdown('</div>', unsafe_allow_html=True)
         
     with m3:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         if "DNS" in df["protocol"].values or "HTTPS" in df["protocol"].values:
             # Filtrar solo dominios
             domains = df[df["protocol"].isin(["DNS", "HTTPS"])]["domain_url"]
@@ -116,7 +145,8 @@ if not df.empty:
             # Truncar si es muy largo
             if len(top_domain) > 30:
                 top_domain = top_domain[:27] + "..."
-            st.metric("Sitio Web más visitado", top_domain)
+            st.metric("Top Destino Mundial", top_domain)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # -- Auto-Refresh --
 if auto_refresh:
