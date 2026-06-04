@@ -19,3 +19,4 @@ pyvis>=0.3.2
 requests>=2.31.0
 beautifulsoup4>=4.12.0
 python-nmap>=0.7.1
+mac-vendor-lookup>=0.1.12
