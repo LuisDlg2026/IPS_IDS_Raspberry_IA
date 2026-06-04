@@ -61,9 +61,25 @@ El repositorio se organiza separando claramente el código fuente de la document
 
 ```text
 IPS_IDS_Raspberry_IA/
-├── docs/               # 📄 DOCUMENTACIÓN: Memorias, diagramas y manuales
-├── src/                # 💻 CÓDIGO FUENTE
-└── README.md
+├── archivos/           # 📝 Documentación adicional y planificación
+├── data/               # 📊 Datasets y modelos de ML entrenados
+├── docs/               # 📄 Memorias, diagramas y recursos LaTeX/Office
+├── logs/               # 📁 Registros de ejecución y capturas
+├── notebooks/          # 📓 Jupyter Notebooks para exploración (EDA)
+├── scripts/            # 📜 Scripts auxiliares
+├── src/                # 💻 CÓDIGO FUENTE PRINCIPAL
+│   ├── capture/        # Captura de paquetes y DPI
+│   ├── crawler/        # Escáner de red, Nmap, y hostnames
+│   ├── dashboard/      # Interfaz web en Streamlit
+│   ├── detection/      # Lógica de detección de intrusos
+│   ├── mitigation/     # IPS / Mitigación de alertas
+│   ├── ml/             # Inferencia de Inteligencia Artificial
+│   └── utils/          # Utilidades compartidas y DB
+├── tests/              # 🧪 Pruebas unitarias y de integración
+├── docker-compose.yml  # 🐳 Orquestación de contenedores
+├── Dockerfile          # 🐳 Definición de la imagen del sistema
+├── start_ids.py        # 🚀 Punto de entrada principal
+└── README.md           # 📖 Este archivo
 ```
 ## � Timeline de Desarrollo (10 Sprints)
 
