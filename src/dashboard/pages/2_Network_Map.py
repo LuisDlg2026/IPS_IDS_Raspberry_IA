@@ -51,7 +51,7 @@ else:
     with col_map:
         # Crear red pyvis
         net = Network(height="650px", width="100%", bgcolor="#141414", font_color="white")
-        net.barnes_hut(gravity=-8000, spring_length=200, spring_constant=0.01)
+        net.barnes_hut(gravity=-8000, spring_length=200)
 
         # Añadir nodo central (Gateway/Router)
         net.add_node("gateway", label="🌐\nCore Gateway", shape="hexagon", color="#00b4d8", size=50)
