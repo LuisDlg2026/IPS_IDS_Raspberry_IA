@@ -83,6 +83,103 @@ else:
     net_status_glow = True
 
 # ═══════════════════════════════════════════════════════════════
+# BANDA 0: Semáforo de estado global del sistema (Arriba del todo)
+# ═══════════════════════════════════════════════════════════════
+# Lógica del semáforo basada en alertas críticas activas en los últimos 15 min:
+#   0 alertas críticas  → SEGURO
+#   1-3                 → ALERTA
+#   > 3                 → CRÍTICO
+if critical_15m == 0:
+    sem_state = "SEGURO"
+    sem_color = "#22c55e"
+    sem_bg = "rgba(34, 197, 94, 0.12)"
+    sem_border = "rgba(34, 197, 94, 0.3)"
+    sem_icon = "🟢"
+    sem_glow = f"0 0 30px rgba(34, 197, 94, 0.3)"
+    sem_description = "No se han detectado alertas críticas en los últimos 15 minutos."
+elif critical_15m <= 3:
+    sem_state = "ALERTA"
+    sem_color = "#f59e0b"
+    sem_bg = "rgba(245, 158, 11, 0.12)"
+    sem_border = "rgba(245, 158, 11, 0.3)"
+    sem_icon = "🟡"
+    sem_glow = f"0 0 30px rgba(245, 158, 11, 0.3)"
+    sem_description = f"{critical_15m} alerta(s) crítica(s) detectada(s) en los últimos 15 minutos."
+else:
+    sem_state = "CRÍTICO"
+    sem_color = "#ef4444"
+    sem_bg = "rgba(239, 68, 68, 0.15)"
+    sem_border = "rgba(239, 68, 68, 0.4)"
+    sem_icon = "🔴"
+    sem_glow = f"0 0 40px rgba(239, 68, 68, 0.4), 0 0 80px rgba(239, 68, 68, 0.2)"
+    sem_description = f"¡{critical_15m} alertas críticas activas! Se requiere acción inmediata."
+
+st.html(f"""
+<div style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 30px 48px;
+    background: {sem_bg};
+    border: 2px solid {sem_border};
+    border-radius: 20px;
+    box-shadow: {sem_glow};
+    animation: sentinel-pulse 2.5s ease-in-out infinite;
+    --glow-color: {sem_color};
+    transition: all 0.3s ease;
+    margin-bottom: 24px;
+">
+    <!-- Indicador circular -->
+    <div style="
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: radial-gradient(circle, {sem_color} 0%, rgba(0,0,0,0) 70%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        flex-shrink: 0;
+        box-shadow: 0 0 30px {sem_color}44, 0 0 60px {sem_color}22;
+    ">
+        {sem_icon}
+    </div>
+
+    <!-- Texto del estado -->
+    <div style="text-align: left;">
+        <div style="
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: {sem_color};
+            letter-spacing: 0.08em;
+            line-height: 1.1;
+            text-shadow: 0 0 20px {sem_color}44;
+        ">
+            {sem_state}
+        </div>
+        <div style="
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 6px;
+            line-height: 1.4;
+        ">
+            {sem_description}
+        </div>
+        <div style="
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 4px;
+            opacity: 0.6;
+        ">
+            Basado en alertas críticas de los últimos 15 minutos • Actualización cada {DASHBOARD_REFRESH_RATE}s
+        </div>
+    </div>
+</div>
+""")
+
+# ═══════════════════════════════════════════════════════════════
 # BANDA 1: Tarjetas KPI
 # ═══════════════════════════════════════════════════════════════
 col1, col2, col3, col4 = st.columns(4)
@@ -246,104 +343,6 @@ else:
         <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">El perímetro de red está limpio</div>
     </div>
     """)
-
-# ═══════════════════════════════════════════════════════════════
-# BANDA 3: Semáforo de estado global del sistema
-# ═══════════════════════════════════════════════════════════════
-render_section_divider("Estado Global del Sistema")
-
-# Lógica del semáforo basada en alertas críticas activas en los últimos 15 min:
-#   0 alertas críticas  → SEGURO
-#   1-3                 → ALERTA
-#   > 3                 → CRÍTICO
-if critical_15m == 0:
-    sem_state = "SEGURO"
-    sem_color = "#22c55e"
-    sem_bg = "rgba(34, 197, 94, 0.12)"
-    sem_border = "rgba(34, 197, 94, 0.3)"
-    sem_icon = "🟢"
-    sem_glow = f"0 0 30px rgba(34, 197, 94, 0.3)"
-    sem_description = "No se han detectado alertas críticas en los últimos 15 minutos."
-elif critical_15m <= 3:
-    sem_state = "ALERTA"
-    sem_color = "#f59e0b"
-    sem_bg = "rgba(245, 158, 11, 0.12)"
-    sem_border = "rgba(245, 158, 11, 0.3)"
-    sem_icon = "🟡"
-    sem_glow = f"0 0 30px rgba(245, 158, 11, 0.3)"
-    sem_description = f"{critical_15m} alerta(s) crítica(s) detectada(s) en los últimos 15 minutos."
-else:
-    sem_state = "CRÍTICO"
-    sem_color = "#ef4444"
-    sem_bg = "rgba(239, 68, 68, 0.15)"
-    sem_border = "rgba(239, 68, 68, 0.4)"
-    sem_icon = "🔴"
-    sem_glow = f"0 0 40px rgba(239, 68, 68, 0.4), 0 0 80px rgba(239, 68, 68, 0.2)"
-    sem_description = f"¡{critical_15m} alertas críticas activas! Se requiere acción inmediata."
-
-st.html(f"""
-<div style="
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-    padding: 40px 48px;
-    background: {sem_bg};
-    border: 2px solid {sem_border};
-    border-radius: 20px;
-    box-shadow: {sem_glow};
-    animation: sentinel-pulse 2.5s ease-in-out infinite;
-    --glow-color: {sem_color};
-    transition: all 0.3s ease;
-">
-    <!-- Indicador circular -->
-    <div style="
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        background: radial-gradient(circle, {sem_color} 0%, rgba(0,0,0,0) 70%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 3.5rem;
-        flex-shrink: 0;
-        box-shadow: 0 0 40px {sem_color}44, 0 0 80px {sem_color}22;
-    ">
-        {sem_icon}
-    </div>
-
-    <!-- Texto del estado -->
-    <div style="text-align: left;">
-        <div style="
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 3rem;
-            font-weight: 800;
-            color: {sem_color};
-            letter-spacing: 0.08em;
-            line-height: 1.1;
-            text-shadow: 0 0 20px {sem_color}44;
-        ">
-            {sem_state}
-        </div>
-        <div style="
-            color: var(--text-muted);
-            font-size: 1rem;
-            margin-top: 8px;
-            line-height: 1.4;
-        ">
-            {sem_description}
-        </div>
-        <div style="
-            color: var(--text-muted);
-            font-size: 0.78rem;
-            margin-top: 6px;
-            opacity: 0.6;
-        ">
-            Basado en alertas críticas de los últimos 15 minutos • Actualización cada {DASHBOARD_REFRESH_RATE}s
-        </div>
-    </div>
-</div>
-""")
 
 render_footer()
 
