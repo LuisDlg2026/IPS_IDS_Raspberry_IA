@@ -43,7 +43,7 @@ SEVERITY_BG = {
 
 def inject_global_css():
     """Inyecta el CSS global del sistema de diseño Sentinel UI."""
-    st.markdown(f"""
+    st.html(f"""
     <style>
         /* ═══ Google Fonts ═══ */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -97,7 +97,17 @@ def inject_global_css():
             letter-spacing: -0.02em;
         }}
 
-        p, span, label, .stMarkdown {{
+        p, label, .stMarkdown {{
+            font-family: 'Inter', sans-serif !important;
+        }}
+
+        /* Aplicar Inter solo a spans de contenido, NO a spans de iconos */
+        [data-testid="stMarkdownContainer"] span,
+        [data-testid="stMetricLabel"] span,
+        [data-testid="stMetricDelta"] span,
+        .stRadio span,
+        .stCheckbox span,
+        .stSelectbox span {{
             font-family: 'Inter', sans-serif !important;
         }}
 
@@ -523,7 +533,7 @@ def inject_global_css():
             opacity: 0.6;
         }}
     </style>
-    """, unsafe_allow_html=True)
+    """)
 
 
 # ─── Funciones Helper de Renderizado ──────────────────────────────
@@ -532,38 +542,38 @@ def render_page_header(icon: str, title: str, subtitle: str, gradient: str = Non
     """Renderiza un header de página con gradiente y subtítulo."""
     gradient_css = gradient or "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"
     accent_css = accent or "linear-gradient(90deg, var(--accent-cyan), var(--accent-purple))"
-    st.markdown(f"""
+    st.html(f"""
     <div class="sentinel-header" style="--header-gradient: {gradient_css}; --header-accent: {accent_css};">
         <span class="header-icon">{icon}</span>
         <h1>{title}</h1>
         <p class="header-subtitle">{subtitle}</p>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_metric_card(icon: str, label: str, value: str, accent: str = "blue", subtitle: str = "", glow: bool = False):
     """Renderiza una tarjeta de métrica glassmorphism con icono y glow opcional."""
     glow_class = "glow-active" if glow else ""
     sub_html = f'<span class="metric-sub">{subtitle}</span>' if subtitle else ""
-    st.markdown(f"""
+    st.html(f"""
     <div class="sentinel-metric accent-{accent} {glow_class}">
         <span class="metric-icon">{icon}</span>
         <span class="metric-label">{label}</span>
         <span class="metric-value">{value}</span>
         {sub_html}
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_section_divider(title: str):
     """Renderiza un separador de sección con título centrado y líneas degradadas."""
-    st.markdown(f"""
+    st.html(f"""
     <div class="sentinel-divider">
         <div class="divider-line"></div>
         <span class="divider-title">{title}</span>
         <div class="divider-line right"></div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def render_status_badge(text: str, severity: str = "info"):
@@ -588,21 +598,21 @@ def render_legend_item(color: str, label: str):
 
 def render_glass_container_start(extra_style: str = ""):
     """Abre un contenedor glassmorphism."""
-    st.markdown(f'<div class="glass-card" style="{extra_style}">', unsafe_allow_html=True)
+    st.html(f'<div class="glass-card" style="{extra_style}">')
 
 
 def render_glass_container_end():
     """Cierra un contenedor glassmorphism."""
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.html('</div>')
 
 
 def render_footer():
     """Renderiza el footer del sistema."""
-    st.markdown("""
+    st.html("""
     <div class="sentinel-footer">
         🛡️ Sentinel UI • Desarrollado para TFM Ciberseguridad UCLM • Luis Ignacio de Luna Gómez
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 
 def get_plotly_layout():
