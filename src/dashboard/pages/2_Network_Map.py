@@ -1,6 +1,7 @@
 import streamlit as st
 from pyvis.network import Network
 import tempfile
+import time
 import pandas as pd
 from datetime import datetime, timedelta
 from src.dashboard.utils.data_loader import load_devices, load_alerts
