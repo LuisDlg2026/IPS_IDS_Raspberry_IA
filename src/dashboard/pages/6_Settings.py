@@ -91,15 +91,19 @@ st.html(f"""
 </div>
 """)
 
+# Inicializar flags en session_state si no existen
+if "confirm_activate_demo" not in st.session_state:
+    st.session_state.confirm_activate_demo = False
+if "confirm_activate_real" not in st.session_state:
+    st.session_state.confirm_activate_real = False
+
 col_demo1, col_demo2 = st.columns(2)
 
 with col_demo1:
     if not demo_active:
         if st.button("🧪 Activar Modo Demostración", type="primary", use_container_width=True):
-            set_demo_mode(db, True)
-            generate_demo_data(db)
-            st.toast("✅ Datos de demostración generados e inyectados.", icon="🧪")
-            st.rerun()
+            st.session_state.confirm_activate_demo = True
+            st.session_state.confirm_activate_real = False
     else:
         if st.button("🔄 Regenerar Datos de Demo", type="secondary", use_container_width=True):
             generate_demo_data(db)
@@ -109,10 +113,8 @@ with col_demo1:
 with col_demo2:
     if demo_active:
         if st.button("🔒 Cambiar a Datos Reales", type="primary", use_container_width=True):
-            clear_demo_data(db)
-            set_demo_mode(db, False)
-            st.toast("✅ Datos de demostración eliminados. Modo de producción activo.", icon="🔒")
-            st.rerun()
+            st.session_state.confirm_activate_real = True
+            st.session_state.confirm_activate_demo = False
     else:
         st.html("""
         <div style="
@@ -127,6 +129,40 @@ with col_demo2:
             ℹ️ En modo producción, el dashboard muestra las métricas de tráfico real de la red.
         </div>
         """)
+
+# --- Contenedores de Confirmación ---
+if st.session_state.confirm_activate_demo:
+    st.html("<div style='margin-top: 15px;'></div>")
+    st.warning("⚠️ **¡ATENCIÓN!** Activar el Modo Demostración **ELIMINARÁ COMPLETAMENTE todos los datos de tráfico real** de la base de datos para evitar su mezcla. Esta acción es irreversible.")
+    c_col1, c_col2 = st.columns(2)
+    with c_col1:
+        if st.button("🔴 Entiendo, proceder y borrar todo el tráfico real", type="danger", use_container_width=True):
+            db.clear_all_data()
+            set_demo_mode(db, True)
+            generate_demo_data(db)
+            st.session_state.confirm_activate_demo = False
+            st.toast("✅ Datos reales borrados. Modo Demo activado.", icon="🧪")
+            st.rerun()
+    with c_col2:
+        if st.button("Cancelar", key="cancel_demo", type="secondary", use_container_width=True):
+            st.session_state.confirm_activate_demo = False
+            st.rerun()
+
+if st.session_state.confirm_activate_real:
+    st.html("<div style='margin-top: 15px;'></div>")
+    st.warning("⚠️ **¡ATENCIÓN!** Cambiar a Datos Reales **ELIMINARÁ COMPLETAMENTE todos los datos simulados** de la base de datos para iniciar una captura limpia. Esta acción es irreversible.")
+    c_col1, c_col2 = st.columns(2)
+    with c_col1:
+        if st.button("🔴 Entiendo, proceder y borrar todos los datos demo", type="danger", use_container_width=True):
+            db.clear_all_data()
+            set_demo_mode(db, False)
+            st.session_state.confirm_activate_real = False
+            st.toast("✅ Datos de demostración borrados. Modo producción activo.", icon="🔒")
+            st.rerun()
+    with c_col2:
+        if st.button("Cancelar", key="cancel_real", type="secondary", use_container_width=True):
+            st.session_state.confirm_activate_real = False
+            st.rerun()
 
 # ═══════════════════════════════════════════════════════════════
 # CARGAR PARÁMETROS ACTIVOS DESDE LA TABLA CONFIG

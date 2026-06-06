@@ -728,6 +728,26 @@ class Database:
             finally:
                 conn.close()
 
+    def clear_all_data(self):
+        """Elimina todos los datos operativos de las tablas de la base de datos.
+        
+        Vacíe las tablas: alerts, devices, network_stats, events y web_traffic.
+        Mantiene intactas las tablas de configuración 'config' y 'settings'.
+        """
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                for table in ["alerts", "devices", "network_stats", "events", "web_traffic"]:
+                    conn.execute(f"DELETE FROM {table}")
+                conn.commit()
+                conn.execute("VACUUM")
+                logger.info("Todos los datos operativos han sido eliminados de la base de datos.")
+            except Exception as e:
+                logger.error(f"Error al vaciar la base de datos: {e}")
+                raise e
+            finally:
+                conn.close()
+
     def get_db_stats(self) -> Dict:
         """Estadisticas de la base de datos."""
         with self._lock:

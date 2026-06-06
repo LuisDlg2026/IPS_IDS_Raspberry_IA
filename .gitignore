@@ -82,4 +82,5 @@ Thumbs.db
 # Archivos sí versionados
 /archivos/
 
-
+/scratch
+/data/Archivos

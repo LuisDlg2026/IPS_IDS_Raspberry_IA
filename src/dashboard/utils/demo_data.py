@@ -50,8 +50,8 @@ def clear_demo_data(db: Database):
 def generate_demo_data(db: Database):
     """Genera un conjunto completo de datos simulados realistas."""
 
-    # Primero limpiar datos de demo previos
-    clear_demo_data(db)
+    # Primero limpiar todos los datos operativos previos de la base de datos
+    db.clear_all_data()
 
     now = datetime.now()
 
