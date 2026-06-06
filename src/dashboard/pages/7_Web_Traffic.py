@@ -7,8 +7,9 @@ from collections import Counter
 from datetime import datetime, timedelta
 import plotly.express as px
 from src.dashboard.utils.data_loader import (
-    load_web_traffic_filtered, load_dns_web_metrics, load_devices
+    load_web_traffic_filtered, load_dns_web_metrics, load_devices, get_db
 )
+from src.dashboard.utils.demo_data import is_demo_mode
 from src.dashboard.utils.styles import (
     inject_global_css, render_page_header, render_metric_card,
     render_section_divider, render_status_badge, render_footer, get_plotly_layout, COLORS
@@ -185,8 +186,11 @@ def parse_http_details(row):
     
     return method, str(status_code), res_size
 
-# Si no hay datos, poblar con datos simulados realistas de HTTP
-if http_df.empty:
+# Determinar si mostrar simulación basada únicamente en el MODO DEMOSTRACIÓN
+db = get_db()
+demo_active = is_demo_mode(db)
+
+if demo_active and http_df.empty:
     simulated_http = [
         ("192.168.1.10", "192.168.1.1", "ESP32-Temp-Sensor/api/post_stats", "POST", "200", 124),
         ("192.168.1.11", "192.168.1.1", "ESP8266-Humedad/config.json", "GET", "200", 256),
@@ -209,45 +213,55 @@ if http_df.empty:
         })
     http_display_df = pd.DataFrame(sim_data)
 else:
-    # Formatear HTTP reales
-    parsed_cols = http_df.apply(parse_http_details, axis=1)
-    http_df["method"] = [p[0] for p in parsed_cols]
-    http_df["status"] = [p[1] for p in parsed_cols]
-    http_df["size"] = [p[2] for p in parsed_cols]
-    
-    http_display_df = http_df[["timestamp", "src_ip", "dst_ip", "method", "domain_url", "status", "size"]].copy()
-    http_display_df.rename(columns={"domain_url": "url"}, inplace=True)
+    if http_df.empty:
+        http_display_df = pd.DataFrame(columns=["timestamp", "src_ip", "dst_ip", "method", "url", "status", "size"])
+    else:
+        # Formatear HTTP reales
+        parsed_cols = http_df.apply(parse_http_details, axis=1)
+        http_df["method"] = [p[0] for p in parsed_cols]
+        http_df["status"] = [p[1] for p in parsed_cols]
+        http_df["size"] = [p[2] for p in parsed_cols]
+        
+        http_display_df = http_df[["timestamp", "src_ip", "dst_ip", "method", "domain_url", "status", "size"]].copy()
+        http_display_df.rename(columns={"domain_url": "url"}, inplace=True)
 
 # Formatear tamaño de respuesta
 def format_size(val):
-    if val >= 1_000_000:
-        return f"{val / 1_000_000:.2f} MB"
-    elif val >= 1_000:
-        return f"{val / 1_000:.1f} KB"
-    else:
-        return f"{val} B"
+    try:
+        val_int = int(val)
+        if val_int >= 1_000_000:
+            return f"{val_int / 1_000_000:.2f} MB"
+        elif val_int >= 1_000:
+            return f"{val_int / 1_000:.1f} KB"
+        else:
+            return f"{val_int} B"
+    except (ValueError, TypeError):
+        return "0 B"
 
-http_display_df["size_formatted"] = http_display_df["size"].apply(format_size)
+if http_display_df.empty:
+    st.info("💡 No se han detectado conexiones HTTP no cifradas reales en esta ventana temporal.")
+else:
+    http_display_df["size_formatted"] = http_display_df["size"].apply(format_size)
 
-# Ordenar de más reciente a más antiguo
-http_display_df["timestamp"] = pd.to_datetime(http_display_df["timestamp"])
-http_display_df = http_display_df.sort_values(by="timestamp", ascending=False)
+    # Ordenar de más reciente a más antiguo
+    http_display_df["timestamp"] = pd.to_datetime(http_display_df["timestamp"])
+    http_display_df = http_display_df.sort_values(by="timestamp", ascending=False)
 
-# Mostrar tabla
-st.dataframe(
-    http_display_df[["timestamp", "src_ip", "dst_ip", "method", "url", "status", "size_formatted"]],
-    column_config={
-        "timestamp": st.column_config.DatetimeColumn("Hora", format="DD/MM/YY - HH:mm:ss"),
-        "src_ip": st.column_config.TextColumn("IP Origen"),
-        "dst_ip": st.column_config.TextColumn("IP Destino"),
-        "method": st.column_config.TextColumn("Método"),
-        "url": st.column_config.TextColumn("URL Solicitada"),
-        "status": st.column_config.TextColumn("Respuesta"),
-        "size_formatted": st.column_config.TextColumn("Tamaño Respuesta"),
-    },
-    hide_index=True,
-    use_container_width=True
-)
+    # Mostrar tabla
+    st.dataframe(
+        http_display_df[["timestamp", "src_ip", "dst_ip", "method", "url", "status", "size_formatted"]],
+        column_config={
+            "timestamp": st.column_config.DatetimeColumn("Hora", format="DD/MM/YY - HH:mm:ss"),
+            "src_ip": st.column_config.TextColumn("IP Origen"),
+            "dst_ip": st.column_config.TextColumn("IP Destino"),
+            "method": st.column_config.TextColumn("Método"),
+            "url": st.column_config.TextColumn("URL Solicitada"),
+            "status": st.column_config.TextColumn("Respuesta"),
+            "size_formatted": st.column_config.TextColumn("Tamaño Respuesta"),
+        },
+        hide_index=True,
+        use_container_width=True
+    )
 
 st.caption("ℹ️ El tráfico HTTP sin cifrar transmite contraseñas y payloads en claro, exponiendo a dispositivos vulnerables a inyecciones o escuchas pasivas.")
 
