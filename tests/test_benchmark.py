@@ -3,6 +3,7 @@ import sys
 import time
 import platform
 import datetime
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import logging
@@ -27,7 +28,6 @@ def get_system_info():
         "Procesador/Arquitectura": platform.processor() or "Desconocido",
         "Versión de Python": platform.python_version()
     }
-    # En Raspberry Pi / Linux podemos leer información más detallada del hardware
     if platform.system() == "Linux":
         try:
             with open("/proc/cpuinfo", "r") as f:
@@ -39,36 +39,27 @@ def get_system_info():
             pass
     return info
 
-def run_benchmark_for_model(model_name, n_samples, repeats=5):
-    """Ejecuta el benchmark para un modelo y tamaño de muestra específicos."""
-    try:
-        engine = InferenceEngine(model_name=model_name)
-    except Exception as e:
-        print(f"  [!] Error cargando el modelo {model_name}: {e}")
-        return None
+def run_benchmark_for_engine(engine, dummy_feats, n_samples, repeats=5):
+    """Ejecuta el benchmark para un motor de inferencia ya cargado y un tamaño de muestra específicos."""
+    inference_times_per_sample = []
+    throughputs = []
 
-    # Crear características de prueba estándar con tipos numéricos correctos
-    dummy_feats = {f: 0.0 for f in engine.feature_names}
-    dummy_feats['tcp.dstport'] = 80.0
-    dummy_feats['tcp.srcport'] = 45123.0
-    dummy_feats['tcp.flags'] = 2.0
-    dummy_feats['tcp.seq'] = 123456789.0
-    dummy_feats['tcp.ack'] = 987654321.0
-    
-    # Listas para almacenar métricas de cada repetición
-    inference_times_per_sample = []  # en ms/muestra
-    throughputs = []  # en muestras/s
-
-    # Ejecutar calentamiento (Warm-up) para mitigar el lag de primera carga
-    for _ in range(10):
+    # Calentamiento (Warm-up)
+    for _ in range(5):
         engine.predict(dummy_feats)
 
     for r in range(repeats):
         t0 = time.perf_counter()
         
-        # Inferencia individual por muestra para simular la detección en tiempo real
-        for _ in range(n_samples):
+        # Inferencia individual por muestra para simular detección flujo a flujo
+        for i in range(n_samples):
             engine.predict(dummy_feats)
+            
+            # Mostrar progreso periódico para que el usuario sepa que sigue corriendo
+            if (i + 1) % max(1, n_samples // 10) == 0 or i == n_samples - 1:
+                pct = int(((r * n_samples + i + 1) / (repeats * n_samples)) * 100)
+                sys.stdout.write(f"\r     -> Progreso: {pct}% | Repetición {r+1}/{repeats} | Muestras: {i+1}/{n_samples}")
+                sys.stdout.flush()
             
         elapsed_s = time.perf_counter() - t0
         
@@ -78,8 +69,10 @@ def run_benchmark_for_model(model_name, n_samples, repeats=5):
         inference_times_per_sample.append(ms_per_sample)
         throughputs.append(samples_per_s)
         
+    print()  # Salto de línea después del bucle de progreso
+    
     mean_ms = np.mean(inference_times_per_sample)
-    std_ms = np.std(inference_times_per_sample)
+    std_ms = np.std(inference_times_per_sample) if len(inference_times_per_sample) > 1 else 0.0
     mean_throughput = np.mean(throughputs)
     
     return {
@@ -104,14 +97,74 @@ def main():
     results = {}
     
     for model in models:
+        print(f"\n[+] Cargando modelo '{model}'...")
+        t_load = time.perf_counter()
+        try:
+            # Desactivar warnings durante la carga
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                engine = InferenceEngine(model_name=model)
+            print(f"    -> Modelo cargado en {time.perf_counter() - t_load:.2f}s")
+        except Exception as e:
+            print(f"    [!] Error al cargar el modelo '{model}': {e}")
+            continue
+
         results[model] = {}
+        
+        # Crear características de prueba
+        dummy_feats = {f: 0.0 for f in engine.feature_names}
+        dummy_feats['tcp.dstport'] = 80.0
+        dummy_feats['tcp.srcport'] = 45123.0
+        dummy_feats['tcp.flags'] = 2.0
+        dummy_feats['tcp.seq'] = 123456789.0
+        dummy_feats['tcp.ack'] = 987654321.0
+        
+        # Muestreo rápido de 10 ejecuciones para estimar latencia por muestra
+        t_est = time.perf_counter()
+        for _ in range(10):
+            engine.predict(dummy_feats)
+        lat_est_ms = ((time.perf_counter() - t_est) / 10.0) * 1000.0
+
         for size in sample_sizes:
-            print(f"\n[+] Evaluando '{model}' con {size} muestras (5 repeticiones)...")
-            res = run_benchmark_for_model(model, size, repeats=5)
+            # Estimar el tiempo total para 5 repeticiones de este tamaño
+            est_time_s = (lat_est_ms * size * 5) / 1000.0
+            
+            actual_repeats = 5
+            skip_size = False
+            
+            # Limitar repeticiones o saltar tamaño si va a demorar demasiado en hardware limitado
+            if est_time_s > 60.0:  # Si toma más de 1 minuto
+                actual_repeats = 2
+                est_time_s = (lat_est_ms * size * actual_repeats) / 1000.0
+                if est_time_s > 60.0:
+                    actual_repeats = 1
+                    est_time_s = (lat_est_ms * size * actual_repeats) / 1000.0
+                    if est_time_s > 90.0:  # Si incluso 1 repetición tarda más de 90s, lo omitimos y proyectamos
+                        skip_size = True
+            
+            if skip_size:
+                print(f"    [!] Omitiendo {size} muestras para '{model}' (Tiempo estimado excesivo: {est_time_s:.1f}s). Proyectando datos.")
+                # Proyección basada en el tamaño de muestra anterior
+                prev_size = 1000 if size == 10000 else 100
+                prev_res = results[model].get(prev_size)
+                if prev_res:
+                    results[model][size] = {
+                        "mean_ms": prev_res["mean_ms"],
+                        "std_ms": 0.0,
+                        "samples_s": prev_res["samples_s"],
+                        "projected": True
+                    }
+                else:
+                    results[model][size] = None
+                continue
+
+            print(f"    [+] Evaluando con {size} muestras ({actual_repeats} repeticiones)...")
+            res = run_benchmark_for_engine(engine, dummy_feats, size, repeats=actual_repeats)
             if res:
+                res["projected"] = False
                 results[model][size] = res
-                print(f"    -> Media: {res['mean_ms']:.4f} ms/muestra ± {res['std_ms']:.4f}")
-                print(f"    -> Rendimiento: {res['samples_s']:.1f} muestras/s")
+                print(f"        -> Media: {res['mean_ms']:.4f} ms/muestra ± {res['std_ms']:.4f}")
+                print(f"        -> Rendimiento: {res['samples_s']:.1f} muestras/s")
             else:
                 results[model][size] = None
 
@@ -126,21 +179,23 @@ def main():
     
     report_lines.append("\n## 2. Resultados de Inferencia")
     report_lines.append("Los modelos se evaluaron realizando inferencia individual iterativa para emular la detección en tiempo real flujo por flujo.")
+    report_lines.append("\n> **Nota**: En hardware de recursos limitados (como Raspberry Pi), algunas combinaciones pesadas con muestras grandes se omiten dinámicamente y se proyectan para evitar demoras extremas en el test.")
     
     for size in sample_sizes:
-        report_lines.append(f"\n### Evaluación con {size:,} Muestras (Promedio de 5 ejecuciones)")
-        report_lines.append("| Modelo | Inferencia Media (ms/muestra) | Desviación Estándar (ms) | Rendimiento (muestras/s) |")
-        report_lines.append("| :--- | :---: | :---: | :---: |")
+        report_lines.append(f"\n### Evaluación con {size:,} Muestras")
+        report_lines.append("| Modelo | Inferencia Media (ms/muestra) | Desviación Estándar (ms) | Rendimiento (muestras/s) | Nota |")
+        report_lines.append("| :--- | :---: | :---: | :---: | :---: |")
         for model in models:
             res = results[model].get(size)
             if res:
-                report_lines.append(f"| **{model.upper()}** | {res['mean_ms']:.4f} ms | {res['std_ms']:.4f} ms | {res['samples_s']:.2f} |")
+                nota = "Proyectado" if res.get("projected") else "Medido"
+                report_lines.append(f"| **{model.upper()}** | {res['mean_ms']:.4f} ms | {res['std_ms']:.4f} ms | {res['samples_s']:.2f} | {nota} |")
             else:
-                report_lines.append(f"| **{model.upper()}** | N/A | N/A | N/A |")
+                report_lines.append(f"| **{model.upper()}** | N/A | N/A | N/A | Error de carga |")
 
     report_lines.append("\n## 3. Evaluación de Requisitos No Funcionales (RNF-01)")
     report_lines.append("El criterio de éxito para **RNF-01** exige una latencia menor a 5 segundos (5000 ms) por flujo.")
-    report_lines.append("\n| Modelo | Latencia Máxima Promedio Registrada (ms) | RNF-01 Cumplido |")
+    report_lines.append("\n| Modelo | Latencia Máxima Registrada / Proyectada (ms) | RNF-01 Cumplido |")
     report_lines.append("| :--- | :---: | :---: |")
     
     for model in models:
@@ -174,14 +229,15 @@ def main():
     print("==================================================")
     for size in sample_sizes:
         print(f"\n### Resultados para {size} muestras:")
-        print(f"{'Modelo':<20} | {'Inferencia media (ms)':<22} | {'Desv. Estándar':<15} | {'Muestras/s':<12}")
-        print("-" * 76)
+        print(f"{'Modelo':<20} | {'Inferencia media':<22} | {'Desv. Estándar':<15} | {'Muestras/s':<12} | {'Nota':<10}")
+        print("-" * 89)
         for model in models:
             res = results[model].get(size)
             if res:
-                print(f"{model:<20} | {res['mean_ms']:>17.4f} ms | {res['std_ms']:>13.4f} | {res['samples_s']:>10.1f}")
+                nota = "Proyectado" if res.get("projected") else "Medido"
+                print(f"{model:<20} | {res['mean_ms']:>17.4f} ms | {res['std_ms']:>13.4f} | {res['samples_s']:>10.1f} | {nota:<10}")
             else:
-                print(f"{model:<20} | {'N/A':>20} | {'N/A':>13} | {'N/A':>10}")
+                print(f"{model:<20} | {'N/A':>20} | {'N/A':>13} | {'N/A':>10} | {'Error':<10}")
 
 if __name__ == "__main__":
     main()

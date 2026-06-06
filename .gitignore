@@ -82,3 +82,4 @@ Thumbs.db
 # Archivos sí versionados
 /archivos/
 
+data/benchmark_results.md
