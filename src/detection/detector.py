@@ -277,7 +277,7 @@ class IDSDetector:
             dst_ip = flow_data["dst_ip"]
 
             # Comprobar lista blanca (whitelist)
-            if src_ip in whitelist or dst_ip in whitelist:
+            if src_ip in whitelist:
                 continue
 
             # Descubrimiento pasivo
