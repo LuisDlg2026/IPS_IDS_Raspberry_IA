@@ -193,7 +193,7 @@ if http_df.empty:
         ("192.168.1.20", "192.168.1.1", "Hikvision-Cam01/video_stream?quality=low", "GET", "200", 8900000),
         ("192.168.1.30", "192.168.1.1", "PLC-Siemens/modbus_bridge", "POST", "500", 64),
         ("192.168.1.100", "142.250.184.4", "google.com/search?q=TFMs+UCLM", "GET", "301", 14500),
-        ("192.168.1.100", "bad-actor-domain.ru/c2_payload.exe", "GET", "200", 5600000),
+        ("192.168.1.100", "185.112.145.12", "bad-actor-domain.ru/c2_payload.exe", "GET", "200", 5600000),
     ]
     
     sim_data = []
