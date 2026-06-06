@@ -143,6 +143,7 @@ class Database:
                 cursor.execute("SELECT COUNT(*) FROM config")
                 if cursor.fetchone()[0] == 0:
                     defaults = [
+                        ("active_model", "str", "random_forest"),
                         ("capture_interface", "str", "eth0"),
                         ("flow_aggregation_window", "int", "15"),
                         ("max_alerts_buffer_size", "int", "1000"),

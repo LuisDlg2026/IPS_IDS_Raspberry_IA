@@ -92,6 +92,7 @@ class IDSDetector:
         db_iface = self._db.get_config("capture_interface", None, "str")
         db_window = self._db.get_config("flow_aggregation_window", None, "int")
         db_confidence = self._db.get_config("min_confidence_general", None, "float")
+        db_model = self._db.get_config("active_model", None, "str")
 
         self._window_seconds = window_seconds or db_window or FLOW_WINDOW_SECONDS
         self._confidence_threshold = confidence_threshold or db_confidence or CONFIDENCE_THRESHOLD
@@ -104,7 +105,7 @@ class IDSDetector:
         from src.capture.features_adapter import FlowAggregator
         from src.capture.dpi_analyzer import DPIAnalyzer
 
-        self._engine = InferenceEngine(model_name=model_name)
+        self._engine = InferenceEngine(model_name=model_name or db_model)
         self._aggregator = FlowAggregator()
         self._dpi_analyzer = DPIAnalyzer(on_web_traffic=None) # Se inyectará el callback luego si es necesario
         
@@ -144,6 +145,12 @@ class IDSDetector:
 
     @property
     def stats(self) -> dict:
+        # Cargar dinámicamente si el modelo cambió en DB
+        db_model = self._db.get_config("active_model", None, "str")
+        if db_model and self._engine.model_name != db_model:
+            from src.ml.inference import get_engine
+            self._engine = get_engine(db_model)
+            
         stats = {**self._stats, **self._engine.stats, **self._capture.stats}
         if stats.get("start_time"):
             stats["uptime_seconds"] = round(time.time() - stats["start_time"], 1)
@@ -260,6 +267,12 @@ class IDSDetector:
         self._stats["flows_analyzed"] += len(flows)
 
         # Cargar valores dinámicos de la DB para la ventana actual
+        db_model = self._db.get_config("active_model", None, "str")
+        if db_model and self._engine.model_name != db_model:
+            from src.ml.inference import get_engine
+            logger.info(f"🔄 Cambio de modelo detectado en caliente: de {self._engine.model_name} a {db_model}. Cargando...")
+            self._engine = get_engine(db_model)
+
         whitelist_str = self._db.get_config("whitelist_ips", "", "str")
         whitelist = [ip.strip() for ip in whitelist_str.split(",") if ip.strip()]
         

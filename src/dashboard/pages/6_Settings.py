@@ -137,6 +137,7 @@ cfg_flow_window = db.get_config("flow_aggregation_window", 15, "int")
 cfg_buffer_size = db.get_config("max_alerts_buffer_size", 1000, "int")
 
 # Sección 2
+cfg_active_model = db.get_config("active_model", "random_forest", "str")
 cfg_min_conf_general = db.get_config("min_confidence_general", 0.50, "float")
 cfg_min_conf_ddos = db.get_config("min_confidence_ddos", 0.60, "float")
 cfg_min_conf_mitm = db.get_config("min_confidence_mitm", 0.50, "float")
@@ -215,8 +216,32 @@ with st.form("settings_form"):
         )
 
     # 🧠 SECCIÓN 2: Umbrales de Clasificación e Inferencia
-    with st.expander("🧠 2. Umbrales de Clasificación y Severidad", expanded=True):
-        st.markdown("Defina el comportamiento del modelo de Inteligencia Artificial y la clasificación de eventos.")
+    with st.expander("🧠 2. Modelo de IA y Umbrales de Inferencia", expanded=True):
+        st.markdown("Defina el modelo de Inteligencia Artificial activo y los parámetros de inferencia.")
+        
+        # Selector de Modelo ML
+        model_options = {
+            "random_forest": "Random Forest (Clásico - Menor tasa de falsos positivos)",
+            "decision_tree": "Decision Tree (Clasificación rápida)",
+            "mlp": "Multi-Layer Perceptron (Red Neuronal - Generaliza mejor en tráfico real)",
+            "lightgbm": "LightGBM (Modelo ligero de gradiente)",
+            "xgboost": "XGBoost (Modelo avanzado de gradiente)"
+        }
+        
+        try:
+            model_index = list(model_options.keys()).index(cfg_active_model)
+        except ValueError:
+            model_index = 0
+            
+        active_model = st.selectbox(
+            "Modelo de Inteligencia Artificial activo:",
+            options=list(model_options.keys()),
+            format_func=lambda x: model_options[x],
+            index=model_index,
+            help="Seleccione el algoritmo de Machine Learning que procesará las conexiones en tiempo real."
+        )
+        
+        st.write("") # Espaciador
         
         col_c1, col_c2 = st.columns(2)
         
@@ -407,6 +432,7 @@ if save_submitted:
     db.set_config("max_alerts_buffer_size", buffer_size, "int")
     
     # Sección 2
+    db.set_config("active_model", active_model, "str")
     db.set_config("min_confidence_general", conf_general, "float")
     db.set_config("min_confidence_ddos", conf_ddos, "float")
     db.set_config("min_confidence_mitm", conf_mitm, "float")
