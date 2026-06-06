@@ -4,7 +4,8 @@ import time
 import os
 from datetime import datetime, timedelta
 import plotly.express as px
-from src.dashboard.utils.data_loader import load_network_stats, load_alerts
+from src.dashboard.utils.data_loader import load_network_stats, load_alerts, get_db
+from src.dashboard.utils.demo_data import is_demo_mode
 from src.dashboard.utils.styles import (
     inject_global_css, render_page_header, render_metric_card,
     render_section_divider, render_footer, get_plotly_layout, COLORS
@@ -264,7 +265,7 @@ render_section_divider("Flujos de Comunicación de Mayor Volumen (Top 10)")
 since_alerts = (datetime.now() - timedelta(minutes=15)).isoformat()
 alerts_df = load_alerts(limit=100, since=since_alerts)
 
-def get_active_flows(alerts_df):
+def get_active_flows(alerts_df, demo_active=False):
     flows = []
     
     # Procesar flujos de alerta reales
@@ -301,37 +302,43 @@ def get_active_flows(alerts_df):
                 "classification": row.get("attack_type", "Unknown").replace("Normal", "Normal (Benigno)")
             })
             
-    # Añadir flujos normales de simulación para realismo y variedad
-    normal_traffic = [
-        ("192.168.1.100", "142.250.184.4", "443", "TCP", 1250000),
-        ("192.168.1.20", "192.168.1.1", "554", "TCP", 8900000),
-        ("192.168.1.30", "192.168.1.1", "502", "TCP", 340000),
-        ("192.168.1.100", "8.8.8.8", "53", "UDP", 45000),
-        ("192.168.1.200", "192.168.1.1", "22", "TCP", 67000),
-        ("192.168.1.100", "13.107.4.52", "443", "TCP", 2300000),
-        ("192.168.1.10", "192.168.1.1", "80", "TCP", 12000),
-        ("192.168.1.11", "192.168.1.1", "80", "TCP", 15000),
-        ("192.168.1.200", "1.1.1.1", "53", "UDP", 8000),
-        ("192.168.1.30", "192.168.1.200", "80", "TCP", 450000),
-    ]
-    
-    for src, dst, port, proto, b_val in normal_traffic:
-        # Evitar duplicados
-        if not any(f["src_ip"] == src and f["dst_ip"] == dst and f["port"] == port for f in flows):
-            flows.append({
-                "src_ip": src,
-                "dst_ip": dst,
-                "port": port,
-                "protocol": proto,
-                "bytes": b_val,
-                "classification": "Normal (Benigno)"
-            })
+    # Añadir flujos normales de simulación para realismo y variedad (solo en modo demostración)
+    if demo_active:
+        normal_traffic = [
+            ("192.168.1.100", "142.250.184.4", "443", "TCP", 1250000),
+            ("192.168.1.20", "192.168.1.1", "554", "TCP", 8900000),
+            ("192.168.1.30", "192.168.1.1", "502", "TCP", 340000),
+            ("192.168.1.100", "8.8.8.8", "53", "UDP", 45000),
+            ("192.168.1.200", "192.168.1.1", "22", "TCP", 67000),
+            ("192.168.1.100", "13.107.4.52", "443", "TCP", 2300000),
+            ("192.168.1.10", "192.168.1.1", "80", "TCP", 12000),
+            ("192.168.1.11", "192.168.1.1", "80", "TCP", 15000),
+            ("192.168.1.200", "1.1.1.1", "53", "UDP", 8000),
+            ("192.168.1.30", "192.168.1.200", "80", "TCP", 450000),
+        ]
+        
+        for src, dst, port, proto, b_val in normal_traffic:
+            # Evitar duplicados
+            if not any(f["src_ip"] == src and f["dst_ip"] == dst and f["port"] == port for f in flows):
+                flows.append({
+                    "src_ip": src,
+                    "dst_ip": dst,
+                    "port": port,
+                    "protocol": proto,
+                    "bytes": b_val,
+                    "classification": "Normal (Benigno)"
+                })
             
     # Ordenar por bytes y tomar los top 10
+    if not flows:
+        return pd.DataFrame()
+        
     flows = sorted(flows, key=lambda x: x["bytes"], reverse=True)
     return pd.DataFrame(flows[:10])
 
-flows_df = get_active_flows(alerts_df)
+db = get_db()
+demo_active = is_demo_mode(db)
+flows_df = get_active_flows(alerts_df, demo_active=demo_active)
 
 if flows_df.empty:
     st.info("💡 No hay flujos activos registrados en este momento.")
