@@ -136,7 +136,7 @@ if st.session_state.confirm_activate_demo:
     st.warning("⚠️ **¡ATENCIÓN!** Activar el Modo Demostración **ELIMINARÁ COMPLETAMENTE todos los datos de tráfico real** de la base de datos para evitar su mezcla. Esta acción es irreversible.")
     c_col1, c_col2 = st.columns(2)
     with c_col1:
-        if st.button("🔴 Entiendo, proceder y borrar todo el tráfico real", type="danger", use_container_width=True):
+        if st.button("🔴 Entiendo, proceder y borrar todo el tráfico real", type="primary", use_container_width=True):
             db.clear_all_data()
             set_demo_mode(db, True)
             generate_demo_data(db)
@@ -153,7 +153,7 @@ if st.session_state.confirm_activate_real:
     st.warning("⚠️ **¡ATENCIÓN!** Cambiar a Datos Reales **ELIMINARÁ COMPLETAMENTE todos los datos simulados** de la base de datos para iniciar una captura limpia. Esta acción es irreversible.")
     c_col1, c_col2 = st.columns(2)
     with c_col1:
-        if st.button("🔴 Entiendo, proceder y borrar todos los datos demo", type="danger", use_container_width=True):
+        if st.button("🔴 Entiendo, proceder y borrar todos los datos demo", type="primary", use_container_width=True):
             db.clear_all_data()
             set_demo_mode(db, False)
             st.session_state.confirm_activate_real = False
