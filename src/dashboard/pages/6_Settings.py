@@ -159,6 +159,11 @@ try:
 except:
     resp_logs = []
 
+# Configuración de Intercepción Activa (MITM)
+cfg_mitm_target = db.get_setting("mitm_target_ip", "")
+cfg_mitm_enabled = db.get_setting("mitm_enabled", "0") == "1"
+cfg_mitm_gateway = db.get_setting("mitm_gateway_ip", "")
+
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURACIÓN OPERATIVA (4 SECCIONES COLAPSABLES)
 # ═══════════════════════════════════════════════════════════════
@@ -357,6 +362,36 @@ with st.form("settings_form"):
         else:
             st.info("💡 No se han registrado acciones de mitigación activa recientemente.")
 
+    # 🕵️‍♂️ SECCIÓN 5: Módulo de Intercepción Activa (MITM)
+    with st.expander("🕵️‍♂️ 5. Módulo de Intercepción Activa (MITM / ARP Spoofing)", expanded=True):
+        st.info("💡 **Redes conmutadas (Switches):** Si la Raspberry Pi no está en modo puente físico, un Switch impedirá que escuche el tráfico de otros hosts. Activar ARP Spoofing redirige temporalmente el tráfico del host seleccionado hacia la Raspberry Pi para que el IDS/IPS y el motor de IA lo analicen.")
+        
+        mitm_enabled = st.toggle(
+            "Habilitar Intercepción Activa (ARP Spoofing)",
+            value=cfg_mitm_enabled,
+            help="Envenena las tablas ARP del dispositivo objetivo y del Router para interceptar su tráfico."
+        )
+        
+        # Reutilizar dispositivos online para seleccionar
+        try:
+            target_mitm_idx = device_ips.index(cfg_mitm_target)
+        except ValueError:
+            target_mitm_idx = 0
+            
+        mitm_target_ip = st.selectbox(
+            "Seleccionar dispositivo objetivo para intercepción (MITM):",
+            options=device_ips,
+            index=target_mitm_idx,
+            help="IP del dispositivo móvil, IoT o PC del cual se quiere auditar el tráfico."
+        )
+        
+        mitm_gateway_ip = st.text_input(
+            "Dirección IP del Router (Gateway) [Opcional]:",
+            value=cfg_mitm_gateway,
+            placeholder="Dejar en blanco para auto-detectar",
+            help="Si se deja vacío, la Raspberry Pi resolverá automáticamente la puerta de enlace por defecto."
+        )
+
     # Botón general de guardado de formulario
     st.markdown("<div style='text-align: right; margin-top: 15px;'>", unsafe_allow_html=True)
     save_submitted = st.form_submit_button("💾 Guardar Configuración", type="primary")
@@ -387,7 +422,12 @@ if save_submitted:
     # Sección 4
     db.set_config("active_response_target_ip", resp_target_ip, "str")
     
-    st.toast("⚙️ Configuración guardada correctamente en la tabla SQLite 'config'.", icon="💾")
+    # Sección 5 (MITM - Guardados en la tabla 'settings' para uso del Spoofer)
+    db.set_setting("mitm_target_ip", mitm_target_ip)
+    db.set_setting("mitm_enabled", "1" if mitm_enabled else "0")
+    db.set_setting("mitm_gateway_ip", mitm_gateway_ip)
+    
+    st.toast("⚙️ Configuración guardada correctamente en la tabla SQLite 'config' y 'settings'.", icon="💾")
     st.success("¡Configuración guardada! Los cambios transaccionales se han persistido e integrado en caliente.")
     time.sleep(1)
     st.rerun()

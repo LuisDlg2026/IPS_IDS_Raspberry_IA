@@ -45,17 +45,34 @@ class DPIAnalyzer:
             }
             
         # 1.5 Analizar DHCP (Capa UDP 67/68) para extraer nombres de dispositivo
+        # 1.5 Analizar DHCP (Capa UDP 67/68) para extraer nombres de dispositivo y datos de red
         elif packet.haslayer(DHCP):
-            hostname = self._parse_dhcp_hostname(packet[DHCP])
-            if hostname:
-                # Modificamos log_entry como tipo "Device_Name" para que el orquestador
-                # sepa que esto es info pasiva del dispositivo y no "navegación"
+            dhcp_details = self._parse_dhcp_details(packet[DHCP], packet)
+            if dhcp_details:
+                hostname = dhcp_details.get("hostname")
+                vendor_class = dhcp_details.get("vendor_class")
+                mac = dhcp_details.get("mac")
+                assigned_ip = dhcp_details.get("assigned_ip")
+                requested_ip = dhcp_details.get("requested_ip")
+                
+                # Determinar IP para asociar al log
+                dev_ip = assigned_ip or requested_ip or src_ip
+                if dev_ip == "0.0.0.0" and dst_ip != "255.255.255.255":
+                    dev_ip = dst_ip
+                
                 log_entry = {
-                    "src_ip": src_ip,
+                    "src_ip": dev_ip,
                     "dst_ip": dst_ip,
                     "protocol": "DHCP",
-                    "domain_url": hostname,
-                    "details": {"type": "Hostname Discovery"}
+                    "domain_url": hostname or vendor_class or "Unknown",
+                    "details": {
+                        "type": "Hostname Discovery",
+                        "mac": mac,
+                        "hostname": hostname,
+                        "vendor_class": vendor_class,
+                        "requested_ip": requested_ip,
+                        "assigned_ip": assigned_ip
+                    }
                 }
 
         # 2. Analizar protocolos TCP (HTTP, HTTPS, FTP, SMTP)
@@ -155,14 +172,43 @@ class DPIAnalyzer:
             pass
         return None
 
-    def _parse_dhcp_hostname(self, dhcp_layer) -> Optional[str]:
-        """Extrae el Hostname de las opciones DHCP (Opción 12)."""
+    def _parse_dhcp_details(self, dhcp_layer, packet) -> Optional[dict]:
+        """Extrae detalles del paquete DHCP y BOOTP (Option 12 Hostname, Option 60 Vendor, MAC)."""
         try:
+            details = {
+                "hostname": None,
+                "vendor_class": None,
+                "requested_ip": None,
+                "assigned_ip": None,
+                "mac": None
+            }
+            
+            # 1. Parsear opciones de DHCP
             for opt in dhcp_layer.options:
-                if isinstance(opt, tuple) and opt[0] == "hostname":
-                    return opt[1].decode('utf-8', errors='ignore')
-        except Exception:
-            pass
+                if isinstance(opt, tuple):
+                    key = opt[0]
+                    val = opt[1]
+                    if key == "hostname":
+                        details["hostname"] = val.decode('utf-8', errors='ignore') if isinstance(val, bytes) else str(val)
+                    elif key == "vendor_class_id":
+                        details["vendor_class"] = val.decode('utf-8', errors='ignore') if isinstance(val, bytes) else str(val)
+                    elif key == "requested_addr":
+                        details["requested_ip"] = str(val)
+            
+            # 2. Parsear BOOTP para MAC e IP asignada
+            if packet.haslayer(BOOTP):
+                bootp = packet[BOOTP]
+                if bootp.chaddr:
+                    # chaddr es un byte string de 16 bytes. El MAC de Ethernet son los primeros 6 bytes.
+                    mac_bytes = bootp.chaddr[:6]
+                    details["mac"] = ":".join(f"{b:02x}" for b in mac_bytes)
+                if bootp.yiaddr and bootp.yiaddr != "0.0.0.0":
+                    details["assigned_ip"] = bootp.yiaddr
+                    
+            if details["hostname"] or details["vendor_class"] or details["mac"]:
+                return details
+        except Exception as e:
+            logger.debug(f"Error parseando DHCP: {e}")
         return None
 
     def _parse_tls_sni(self, payload: bytes) -> Optional[str]:
