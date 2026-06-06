@@ -97,6 +97,7 @@ def main():
     results = {}
     
     for model in models:
+        results[model] = {}
         print(f"\n[+] Cargando modelo '{model}'...")
         t_load = time.perf_counter()
         try:
@@ -108,8 +109,6 @@ def main():
         except Exception as e:
             print(f"    [!] Error al cargar el modelo '{model}': {e}")
             continue
-
-        results[model] = {}
         
         # Crear características de prueba
         dummy_feats = {f: 0.0 for f in engine.feature_names}
