@@ -93,7 +93,7 @@ IPS_IDS_Raspberry_IA/
 | **Sprint 6** | Backend API REST y almacenamiento | Semana 13-14 | ✅ Completado |
 | **Sprint 7** | Dashboard Streamlit e integración completa | Semana 15-16 | ✅ Completado |
 | **Sprint 8** | Testing en Raspberry Pi y optimización hw | Semana 17-18 | ✅ Completado |
-| **Sprint 9** | Documentación final, ajustes y defensa | Semana 19-20 | ⏳ Pendiente |
+| **Sprint 9** | Documentación final, ajustes y defensa | Semana 19-20 | ✅ Completado |
 
 ## 🛠️ Requisitos del Sistema
 
