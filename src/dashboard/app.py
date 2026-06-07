@@ -2,7 +2,7 @@ import streamlit as st
 from src.dashboard.utils.styles import inject_global_css, render_footer
 
 st.set_page_config(
-    page_title="Edge-IIoTset IPS/IDS",
+    page_title="IDS con IA en Raspberry PI",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -36,14 +36,14 @@ st.html("""
         -webkit-text-fill-color: transparent;
         background-clip: text;
         letter-spacing: -0.03em;
-    ">Edge-IIoTset: IPS/IDS</h1>
+    ">IDS con IA en Raspberry PI</h1>
     <p style="
         color: #94a3b8;
         font-size: 1.15rem;
         max-width: 600px;
         margin: 0 auto 8px auto;
         line-height: 1.6;
-    ">Sistema de Prevención y Detección de Intrusiones con Inteligencia Artificial para redes IoT</p>
+    ">Sistema de Prevención y Detección de Intrusiones con Inteligencia Artificial para Monitoreo y Protección de Redes Domésticas y PyMEs</p>
     <div style="
         position: absolute;
         top: 0; left: 0; right: 0;
