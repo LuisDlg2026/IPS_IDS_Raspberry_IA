@@ -116,11 +116,126 @@ class NmapScanner:
                 "hostname": hostname
             }
             logger.info(f"Escaneo Nmap completado para {ip}: OS={os_guess}, Puertos={open_ports}, Hostname={hostname}")
+            
+            # Si Nmap no detectó nada (os_guess es None o vacío), activamos la cascada
+            if not result.get("os_guess"):
+                mdns_res = self.query_mdns(ip)
+                if mdns_res:
+                    result["os_guess"] = mdns_res["os_guess"]
+                    result["vendor"] = mdns_res["vendor"]
+                    logger.info(f"Cascada activa: S.O. detectado vía mDNS para {ip}: OS={result['os_guess']}, Vendor={result['vendor']}")
+                    
+            if not result.get("os_guess"):
+                ssdp_res = self.query_ssdp(ip)
+                if ssdp_res:
+                    result["os_guess"] = ssdp_res["os_guess"]
+                    result["vendor"] = ssdp_res["vendor"]
+                    logger.info(f"Cascada activa: S.O. detectado vía SSDP para {ip}: OS={result['os_guess']}, Vendor={result['vendor']}")
+            
             return result
             
         except Exception as e:
             logger.error(f"Error durante escaneo Nmap a {ip}: {e}")
             return None
+
+    def query_mdns(self, ip: str) -> Optional[Dict[str, str]]:
+        """
+        Realiza consultas mDNS unicast al puerto 5353 del host para obtener pistas de S.O.
+        """
+        from scapy.all import IP, UDP, DNS, DNSQR, sr1
+        
+        logger.info(f"Iniciando cascada: Consulta mDNS activa a {ip}...")
+        try:
+            # 1. Probar consulta PTR para dispositivos Apple
+            pkt_apple = IP(dst=ip)/UDP(sport=5353, dport=5353)/DNS(rd=1, qd=DNSQR(qname="_apple-mobdev2._tcp.local", qtype="PTR"))
+            ans_apple = sr1(pkt_apple, timeout=1.5, verbose=0)
+            if ans_apple and ans_apple.haslayer(DNS):
+                return {"os_guess": "Apple iOS / macOS Device", "vendor": "Apple Inc."}
+                
+            # 2. Probar consulta PTR para Google Cast / Chromecast
+            pkt_cast = IP(dst=ip)/UDP(sport=5353, dport=5353)/DNS(rd=1, qd=DNSQR(qname="_googlecast._tcp.local", qtype="PTR"))
+            ans_cast = sr1(pkt_cast, timeout=1.5, verbose=0)
+            if ans_cast and ans_cast.haslayer(DNS):
+                return {"os_guess": "Android (Google Cast Device)", "vendor": "Google LLC"}
+                
+            # 3. Probar consulta PTR genérica de info de dispositivo
+            pkt_info = IP(dst=ip)/UDP(sport=5353, dport=5353)/DNS(rd=1, qd=DNSQR(qname="_device-info._tcp.local", qtype="PTR"))
+            ans_info = sr1(pkt_info, timeout=1.5, verbose=0)
+            if ans_info and ans_info.haslayer(DNS):
+                dns_layer = ans_info[DNS]
+                for i in range(dns_layer.ancount):
+                    rr_data = str(dns_layer.an[i].rdata).lower()
+                    if "apple" in rr_data:
+                        return {"os_guess": "Apple iOS / macOS Device", "vendor": "Apple Inc."}
+                    elif "android" in rr_data:
+                        return {"os_guess": "Android Device", "vendor": "Google LLC"}
+                        
+        except Exception as e:
+            logger.debug(f"Error en consulta mDNS a {ip}: {e}")
+        return None
+
+    def query_ssdp(self, ip: str) -> Optional[Dict[str, str]]:
+        """
+        Realiza una consulta SSDP unicast directa al puerto 1900 del host buscando descriptores XML.
+        """
+        import socket
+        import requests
+        import re
+        
+        logger.info(f"Iniciando cascada: Consulta SSDP/UPnP activa a {ip}...")
+        try:
+            msg = (
+                "M-SEARCH * HTTP/1.1\r\n"
+                "HOST: 239.255.255.250:1900\r\n"
+                "MAN: \"ssdp:discover\"\r\n"
+                "MX: 2\r\n"
+                "ST: ssdp:all\r\n\r\n"
+            )
+            
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(2.0)
+            s.sendto(msg.encode("utf-8"), (ip, 1900))
+            
+            try:
+                data, addr = s.recvfrom(2048)
+                resp = data.decode("utf-8", errors="ignore")
+                
+                location_match = re.search(r"(?i)LOCATION:\s*([^\r\n]+)", resp)
+                if location_match:
+                    xml_url = location_match.group(1).strip()
+                    # Descargar XML
+                    r = requests.get(xml_url, timeout=2.0)
+                    if r.status_code == 200:
+                        xml_content = r.text
+                        
+                        manufacturer = None
+                        model_name = None
+                        os_str = None
+                        
+                        m_match = re.search(r"<manufacturer>(.*?)</manufacturer>", xml_content)
+                        if m_match: manufacturer = m_match.group(1)
+                        
+                        mn_match = re.search(r"<modelName>(.*?)</modelName>", xml_content)
+                        if mn_match: model_name = mn_match.group(1)
+                        
+                        os_match = re.search(r"<operatingSystem>(.*?)</operatingSystem>", xml_content)
+                        if os_match: os_str = os_match.group(1)
+                        
+                        # Deducir S.O.
+                        os_guess = os_str or "Linux (Embedded)"
+                        vendor = manufacturer or "IoT Device"
+                        
+                        if model_name:
+                            os_guess = f"{os_guess} ({model_name})"
+                            
+                        return {"os_guess": os_guess, "vendor": vendor}
+            except socket.timeout:
+                pass
+            finally:
+                s.close()
+        except Exception as e:
+            logger.debug(f"Error en consulta SSDP a {ip}: {e}")
+        return None
 
     def scan_device_async(self, ip: str):
         """

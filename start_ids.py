@@ -193,6 +193,8 @@ def start_backend():
                             if nmap_result:
                                 if nmap_result.get("os_guess"):
                                     device_info["os_guess"] = nmap_result["os_guess"]
+                                if nmap_result.get("vendor") and (not device_info.get("vendor") or device_info.get("vendor") in ("Unknown", "Unknown (Pasivo)", "Local / Random")):
+                                    device_info["vendor"] = nmap_result["vendor"]
                                 if nmap_result.get("open_ports"):
                                     device_info["open_ports"] = nmap_result["open_ports"]
                                 if nmap_result.get("hostname") and not device_info.get("hostname"):
@@ -320,6 +322,38 @@ def start_backend():
             else:
                 # Es tráfico real, lo guardamos en la tabla web
                 db.save_web_log(log_entry)
+                
+                # Extraer S.O. y fabricante del User-Agent en peticiones HTTP
+                if log_entry.get("protocol") == "HTTP":
+                    details = log_entry.get("details", {})
+                    user_agent = details.get("user_agent") if isinstance(details, dict) else None
+                    if user_agent:
+                        ua_lower = user_agent.lower()
+                        os_guess = None
+                        vendor = None
+                        
+                        if "android" in ua_lower:
+                            os_guess = "Android"
+                            vendor = "Android Device"
+                        elif any(x in ua_lower for x in ["iphone", "ipad", "ipod"]):
+                            os_guess = "iOS"
+                            vendor = "Apple Device"
+                        elif "macintosh" in ua_lower or "mac os x" in ua_lower:
+                            os_guess = "macOS"
+                            vendor = "Apple Device"
+                        elif "windows" in ua_lower:
+                            os_guess = "Windows"
+                            vendor = "Microsoft Device"
+                        elif "linux" in ua_lower:
+                            os_guess = "Linux"
+                            
+                        if os_guess:
+                            db.save_device({
+                                "ip": log_entry.get("src_ip"),
+                                "os_guess": os_guess,
+                                "vendor": vendor,
+                                "is_online": 1
+                            })
 
         # 5. Iniciar el detector pasándole los callbacks
         detector = IDSDetector(on_alert=on_alert_detected, on_flow=on_flow_detected)

@@ -154,19 +154,22 @@ class DPIAnalyzer:
                     method = parts[0]
                     path = parts[1]
                     
-                    # Buscar el header Host:
+                    # Buscar el header Host y User-Agent:
                     host = ""
+                    user_agent = ""
                     for line in lines[1:]:
                         if line.lower().startswith("host:"):
                             host = line.split(":", 1)[1].strip()
-                            break
+                        elif line.lower().startswith("user-agent:"):
+                            user_agent = line.split(":", 1)[1].strip()
                     
                     url = f"{host}{path}" if host else path
                     return {
                         "method": method,
                         "host": host,
                         "path": path,
-                        "url": url
+                        "url": url,
+                        "user_agent": user_agent if user_agent else None
                     }
         except Exception:
             pass
