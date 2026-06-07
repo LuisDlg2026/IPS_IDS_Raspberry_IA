@@ -110,7 +110,7 @@ class FirmwareCrawler:
                 os_guess = "Linux (Raspberry Pi OS)"
                 if vendor in ("Unknown", "Local / Random"):
                     vendor = "Raspberry Pi"
-            elif "windows" in h_lower:
+            elif any(x in h_lower for x in ["windows", "desktop-", "laptop-"]) or h_lower.endswith("-pc"):
                 os_guess = "Windows"
                 if vendor in ("Unknown", "Local / Random"):
                     vendor = "Microsoft Device"

@@ -306,6 +306,9 @@ def start_backend():
                 elif hostname and "raspberry" in hostname.lower():
                     os_guess = "Linux (Raspberry Pi OS)"
                     vendor = "Raspberry Pi"
+                elif hostname and (any(x in hostname.lower() for x in ["windows", "desktop-", "laptop-"]) or hostname.lower().endswith("-pc")):
+                    os_guess = "Windows"
+                    vendor = "Microsoft Device"
                     
                 device_data = {
                     "ip": ip,

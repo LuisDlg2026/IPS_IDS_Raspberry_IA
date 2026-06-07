@@ -119,6 +119,15 @@ class NmapScanner:
             
             # Si Nmap no detectó nada (os_guess es None o vacío), activamos la cascada
             if not result.get("os_guess"):
+                netbios_res = self.query_netbios(ip)
+                if netbios_res:
+                    result["os_guess"] = netbios_res["os_guess"]
+                    result["vendor"] = netbios_res["vendor"]
+                    if netbios_res.get("hostname") and not result.get("hostname"):
+                        result["hostname"] = netbios_res["hostname"]
+                    logger.info(f"Cascada activa: S.O. detectado vía NetBIOS para {ip}: OS={result['os_guess']}, Vendor={result['vendor']}, Hostname={result.get('hostname')}")
+                    
+            if not result.get("os_guess"):
                 mdns_res = self.query_mdns(ip)
                 if mdns_res:
                     result["os_guess"] = mdns_res["os_guess"]
@@ -137,6 +146,44 @@ class NmapScanner:
         except Exception as e:
             logger.error(f"Error durante escaneo Nmap a {ip}: {e}")
             return None
+
+    def query_netbios(self, ip: str) -> Optional[Dict[str, str]]:
+        """
+        Realiza una consulta NetBIOS (NBNS) al puerto 137 UDP usando Scapy con payload directo
+        para verificar si es un host Windows/Samba y extraer su hostname.
+        """
+        from scapy.all import IP, UDP, Raw, sr1
+        
+        logger.info(f"Iniciando cascada: Consulta NetBIOS activa a {ip}...")
+        try:
+            # Payload de consulta wildcard '*' de tipo STATUS (solicitar nombres NetBIOS)
+            nbns_payload = b"\xa2\x48\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x20\x43\x4b\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x41\x00\x00\x21\x00\x01"
+            
+            pkt = IP(dst=ip)/UDP(sport=137, dport=137)/Raw(load=nbns_payload)
+            ans = sr1(pkt, timeout=1.5, verbose=0)
+            if ans and ans.haslayer(UDP):
+                # Si nos responde al puerto 137 UDP con cualquier payload, es Windows o Samba (Linux)
+                logger.info(f"Respuesta NetBIOS detectada para {ip}!")
+                
+                # Intentar parsear el hostname del payload de respuesta para refinar
+                try:
+                    raw_data = bytes(ans[Raw].load)
+                    if len(raw_data) > 58:
+                        num_names = raw_data[56]
+                        if num_names > 0:
+                            # Primer nombre en la lista (generalmente el hostname del equipo)
+                            name_bytes = raw_data[57:57+15]
+                            hostname = name_bytes.decode("utf-8", errors="ignore").strip()
+                            if hostname:
+                                logger.info(f"Nombre de host NetBIOS extraído: {hostname}")
+                                return {"os_guess": "Windows", "vendor": "Microsoft Device", "hostname": hostname}
+                except Exception:
+                    pass
+                
+                return {"os_guess": "Windows", "vendor": "Microsoft Device"}
+        except Exception as e:
+            logger.debug(f"Error en consulta NetBIOS a {ip}: {e}")
+        return None
 
     def query_mdns(self, ip: str) -> Optional[Dict[str, str]]:
         """
