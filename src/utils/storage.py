@@ -155,6 +155,7 @@ class Database:
                         ("severity_threshold_warn_to_crit", "float", "0.75"),
                         ("arp_passive_scan_interval", "int", "5"),
                         ("nmap_active_scan_enabled", "bool", "True"),
+                        ("nmap_use_sudo", "bool", "False"),
                         ("whitelist_ips", "str", "192.168.1.10, 192.168.1.99"),
                         ("active_response_target_ip", "str", ""),
                         ("active_response_rules_applied", "bool", "False"),

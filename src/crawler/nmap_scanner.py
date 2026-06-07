@@ -20,6 +20,7 @@ class NmapScanner:
         self._db = db
         try:
             self.nm = nmap.PortScanner()
+            self._original_nmap_path = self.nm._nmap_path
             self._available = True
         except nmap.PortScannerError:
             logger.error("Nmap no está instalado en el sistema. Los escaneos profundos fallarán.")
@@ -36,6 +37,28 @@ class NmapScanner:
         if not self._available:
             return None
             
+        # Alternar dinámicamente privilegios (sudo) a nivel de SO si el setting está activo
+        if self._db:
+            use_sudo = self._db.get_config("nmap_use_sudo", False, "bool")
+            import sys
+            if use_sudo and not sys.platform.startswith("win"):
+                import os
+                from pathlib import Path
+                wrapper_path = Path("/tmp/nmap_sudo_wrapper")
+                if self.nm._nmap_path != str(wrapper_path):
+                    try:
+                        with open(wrapper_path, "w") as f:
+                            f.write(f"#!/bin/sh\nexec sudo {self._original_nmap_path} \"$@\"\n")
+                        os.chmod(wrapper_path, 0o755)
+                        self.nm._nmap_path = str(wrapper_path)
+                        logger.info(f"Nmap alternado dinámicamente a modo Sudo privilegiado: {wrapper_path}")
+                    except Exception as e:
+                        logger.error(f"Error al crear wrapper de sudo para Nmap: {e}")
+            else:
+                if self.nm._nmap_path != self._original_nmap_path:
+                    self.nm._nmap_path = self._original_nmap_path
+                    logger.info("Nmap alternado dinámicamente a modo estándar (sin privilegios)")
+
         logger.info(f"Iniciando escaneo profundo Nmap para {ip}...")
         try:
             # -sV: Detección de versión de servicios

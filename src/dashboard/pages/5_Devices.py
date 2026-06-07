@@ -173,11 +173,11 @@ else:
     for idx, (_, row) in enumerate(devices_df.iterrows()):
         ip = row.get("ip", "unknown")
         mac = row.get("mac", "unknown")
-        vendor = row.get("vendor", "Unknown")
+        vendor = row.get("vendor") or "Desconocido"
         hostname = row.get("hostname")
         is_online = row.get("is_online", 0)
-        os_guess = row.get("os_guess", "Desconocido")
-        notes = row.get("notes", "")
+        os_guess = row.get("os_guess") or "Desconocido"
+        notes = row.get("notes") or ""
         
         display_name = hostname if (hostname and hostname != "None" and hostname != "") else vendor
         is_new = row["first_seen"] >= pd.to_datetime(since_2h)

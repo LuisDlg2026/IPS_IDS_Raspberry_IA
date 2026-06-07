@@ -184,6 +184,7 @@ cfg_sev_warn_crit = db.get_config("severity_threshold_warn_to_crit", 0.75, "floa
 # Sección 3
 cfg_arp_interval = db.get_config("arp_passive_scan_interval", 5, "int")
 cfg_nmap_enabled = db.get_config("nmap_active_scan_enabled", True, "bool")
+cfg_nmap_use_sudo = db.get_config("nmap_use_sudo", False, "bool")
 cfg_whitelist = db.get_config("whitelist_ips", "192.168.1.10, 192.168.1.99", "str")
 
 # Sección 4
@@ -369,6 +370,12 @@ with st.form("settings_form"):
             help="Lanza automáticamente un escaneo asíncrono Nmap (SO, puertos abiertos, servicios) al descubrir un host nuevo."
         )
         
+        nmap_use_sudo = st.toggle(
+            "Ejecutar Nmap con Sudo (Modo Privilegiado)",
+            value=cfg_nmap_use_sudo,
+            help="Permite a Nmap usar el motor de detección de S.O. (-O) y escaneos de puertos sigilosos TCP SYN (-sS). Requiere privilegios elevados o configurar Nmap sin contraseña en sudoers."
+        )
+        
         whitelist = st.text_area(
             "Dispositivos en Lista Blanca (IPs separadas por comas):",
             value=cfg_whitelist,
@@ -479,6 +486,7 @@ if save_submitted:
     # Sección 3
     db.set_config("arp_passive_scan_interval", arp_interval, "int")
     db.set_config("nmap_active_scan_enabled", nmap_enabled, "bool")
+    db.set_config("nmap_use_sudo", nmap_use_sudo, "bool")
     db.set_config("whitelist_ips", whitelist, "str")
     
     # Sección 4

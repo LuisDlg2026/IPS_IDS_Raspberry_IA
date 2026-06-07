@@ -107,6 +107,12 @@ def load_devices(online_only: bool = False) -> pd.DataFrame:
     
     df = pd.DataFrame(devices)
     df["last_seen"] = pd.to_datetime(df["last_seen"])
+    
+    # Limpiar nulos para evitar visualizaciones 'nan' o 'None' en el dashboard
+    for col in ["hostname", "vendor", "os_guess", "notes"]:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: None if pd.isna(x) or str(x).strip().lower() in ("nan", "none", "") else x)
+            
     return df
 
 def load_network_stats(limit: int = 100, hours: Optional[int] = None) -> pd.DataFrame:

@@ -200,7 +200,7 @@ else:
         # Añadir nodos
         for ip, info in nodes_info.items():
             hostname = info.get("hostname")
-            vendor = info.get("vendor", "Unknown")
+            vendor = info.get("vendor") or "Desconocido"
             
             # Identificar Gateway (usualmente 192.168.1.1 o localhost)
             is_gw = (ip == "192.168.1.1" or info.get("mac") == "localhost")
@@ -284,7 +284,7 @@ else:
         
         # Atributos del dispositivo
         st.sidebar.markdown(f"**Nombre/Host:** `{info.get('hostname') or info.get('vendor') or 'Desconocido'}`")
-        st.sidebar.markdown(f"**Fabricante:** {info.get('vendor', 'Desconocido')}")
+        st.sidebar.markdown(f"**Fabricante:** {info.get('vendor') or 'Desconocido'}")
         st.sidebar.markdown(f"**MAC:** `{info.get('mac', 'Desconocida')}`")
         st.sidebar.markdown(f"**Nivel de Riesgo:** `{info.get('risk_level', 'low').upper()}`")
         
