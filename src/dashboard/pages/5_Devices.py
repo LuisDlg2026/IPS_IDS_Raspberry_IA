@@ -204,7 +204,17 @@ else:
                     # Badge de conexión
                     status_badge_text = "En Línea" if is_online == 1 else "Offline"
                     status_badge_sev = "ok" if is_online == 1 else "info"
-                    st.html(f"<div style='text-align: right;'>{render_status_badge(status_badge_text, status_badge_sev)}</div>")
+                    
+                    # Leer estado MITM para este host
+                    mitm_target = get_db().get_setting("mitm_target_ip", "")
+                    mitm_enabled = get_db().get_setting("mitm_enabled", "0") == "1"
+                    is_intercepted = mitm_enabled and (mitm_target == ip)
+                    
+                    badge_html = f"{render_status_badge(status_badge_text, status_badge_sev)}"
+                    if is_intercepted:
+                        badge_html = f"{render_status_badge('Interceptando', 'warn')} {badge_html}"
+                        
+                    st.html(f"<div style='text-align: right;'>{badge_html}</div>")
                 
                 # Cuerpo de tarjeta
                 st.markdown(f"**Nombre / OUI:** `{display_name}`")
@@ -271,7 +281,7 @@ else:
                     st.markdown("🔒 **Seguridad:** `Sin incidentes registrados en las últimas 24h`")
                 
                 # Expansores de acciones individuales
-                act_col1, act_col2 = st.columns(2)
+                act_col1, act_col2, act_col3 = st.columns(3)
                 
                 with act_col1:
                     with st.expander("📝 Etiquetar", expanded=False):
@@ -289,6 +299,26 @@ else:
                     if st.button("🕵️‍♂️ Re-escanear Nmap", key=f"scan_btn_{ip}", use_container_width=True):
                         scanner.scan_device_async(ip)
                         st.toast(f"🕵️‍♂️ Escaneo asíncrono Nmap iniciado para {ip}")
+                        
+                with act_col3:
+                    # Leer estado MITM actual
+                    mitm_target = get_db().get_setting("mitm_target_ip", "")
+                    mitm_enabled = get_db().get_setting("mitm_enabled", "0") == "1"
+                    is_intercepted = mitm_enabled and (mitm_target == ip)
+                    
+                    if is_intercepted:
+                        if st.button("🛑 Detener Captura", key=f"mitm_btn_{ip}", type="secondary", use_container_width=True):
+                            get_db().set_setting("mitm_enabled", "0")
+                            st.toast("🛑 Intercepción activa desactivada.", icon="🛑")
+                            time.sleep(0.5)
+                            st.rerun()
+                    else:
+                        if st.button("🎯 Interceptar", key=f"mitm_btn_{ip}", type="primary", use_container_width=True):
+                            get_db().set_setting("mitm_target_ip", ip)
+                            get_db().set_setting("mitm_enabled", "1")
+                            st.toast(f"🎯 Redirigiendo tráfico de {ip} al IDS...", icon="🎯")
+                            time.sleep(0.5)
+                            st.rerun()
 
 st.write("")
 render_footer()
