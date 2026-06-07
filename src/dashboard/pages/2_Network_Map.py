@@ -34,7 +34,7 @@ MAP_COLORS = {
     "clean": "#10b981",         # Verde (Limpio)
     "warning": "#f59e0b",       # Naranja (Advertencia)
     "critical": "#ef4444",      # Rojo (Crítico)
-    "grey": "#64748b",          # Gris (Riesgo medio/alto, sin alertas activas)
+    "medium_high_risk": "#8b5cf6", # Púrpura (Riesgo medio/alto, sin alertas activas)
     "offline": "#475569",       # Gris oscuro (Offline)
     "edge_normal": "rgba(76, 201, 240, 0.4)",
     "edge_warning": "rgba(245, 158, 11, 0.6)",
@@ -194,7 +194,7 @@ else:
         st.markdown("#### 🔑 Leyenda")
         st.markdown(render_legend_item(MAP_COLORS["gateway"], "Core Gateway"), unsafe_allow_html=True)
         st.markdown(render_legend_item(MAP_COLORS["clean"], "Limpio (Riesgo Bajo)"), unsafe_allow_html=True)
-        st.markdown(render_legend_item(MAP_COLORS["grey"], "Riesgo Medio / Alto"), unsafe_allow_html=True)
+        st.markdown(render_legend_item(MAP_COLORS["medium_high_risk"], "Riesgo Medio / Alto"), unsafe_allow_html=True)
         st.markdown(render_legend_item(MAP_COLORS["warning"], "Advertencia (Alerta)"), unsafe_allow_html=True)
         st.markdown(render_legend_item(MAP_COLORS["critical"], "Crítico (Ataque IA)"), unsafe_allow_html=True)
         st.markdown(render_legend_item(MAP_COLORS["offline"], "Desconectado (Offline)"), unsafe_allow_html=True)
@@ -230,7 +230,7 @@ else:
                 elif info["risk_level"] == "low":
                     color = MAP_COLORS["clean"]
                 else:
-                    color = MAP_COLORS["grey"]
+                    color = MAP_COLORS["medium_high_risk"]
 
             if is_gw:
                 color = MAP_COLORS["gateway"]
