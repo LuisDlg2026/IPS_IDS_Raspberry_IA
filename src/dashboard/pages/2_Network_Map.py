@@ -84,14 +84,21 @@ else:
         ip = row.get("ip")
         if not ip:
             continue
+            
+        # Función para limpiar valores nulos de Pandas (NaN/None)
+        def clean_val(val, default=""):
+            if pd.isna(val) or str(val).strip().lower() in ("nan", "none", ""):
+                return default
+            return str(val).strip()
+            
         nodes_info[ip] = {
             "type": "local",
             "mac": row.get("mac", "unknown"),
-            "vendor": row.get("vendor", "Unknown"),
-            "hostname": row.get("hostname"),
+            "vendor": clean_val(row.get("vendor"), "Desconocido"),
+            "hostname": clean_val(row.get("hostname"), None),
             "risk_level": row.get("risk_level", "low"),
             "is_online": row.get("is_online", 1),
-            "os": row.get("os_guess", "Desconocido"),
+            "os": clean_val(row.get("os_guess"), "Desconocido"),
             "alerts_count": 0,
             "critical_alerts": 0,
             "last_activity": row.get("last_seen", "N/A"),

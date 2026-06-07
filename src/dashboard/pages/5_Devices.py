@@ -173,13 +173,20 @@ else:
     for idx, (_, row) in enumerate(devices_df.iterrows()):
         ip = row.get("ip", "unknown")
         mac = row.get("mac", "unknown")
-        vendor = row.get("vendor") or "Desconocido"
-        hostname = row.get("hostname")
-        is_online = row.get("is_online", 0)
-        os_guess = row.get("os_guess") or "Desconocido"
-        notes = row.get("notes") or ""
         
-        display_name = hostname if (hostname and hostname != "None" and hostname != "") else vendor
+        # Función para limpiar valores nulos de Pandas (NaN/None)
+        def clean_val(val, default=""):
+            if pd.isna(val) or str(val).strip().lower() in ("nan", "none", ""):
+                return default
+            return str(val).strip()
+            
+        vendor = clean_val(row.get("vendor"), "Desconocido")
+        hostname = clean_val(row.get("hostname"), "")
+        is_online = row.get("is_online", 0)
+        os_guess = clean_val(row.get("os_guess"), "Desconocido")
+        notes = clean_val(row.get("notes"), "")
+        
+        display_name = hostname if hostname else vendor
         is_new = row["first_seen"] >= pd.to_datetime(since_2h)
         
         # Calcular riesgo dinámico
