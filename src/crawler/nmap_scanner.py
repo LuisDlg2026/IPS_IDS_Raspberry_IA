@@ -41,8 +41,14 @@ class NmapScanner:
         if self._db:
             use_sudo = self._db.get_config("nmap_use_sudo", False, "bool")
             import sys
-            if use_sudo and not sys.platform.startswith("win"):
-                import os
+            import os
+            
+            # Si ya somos root (por ejemplo, dentro de Docker), no necesitamos el wrapper con sudo
+            is_root = False
+            if hasattr(os, "geteuid"):
+                is_root = (os.geteuid() == 0)
+                
+            if use_sudo and not sys.platform.startswith("win") and not is_root:
                 from pathlib import Path
                 wrapper_path = Path("/tmp/nmap_sudo_wrapper")
                 if self.nm._nmap_path != str(wrapper_path):
@@ -57,7 +63,7 @@ class NmapScanner:
             else:
                 if self.nm._nmap_path != self._original_nmap_path:
                     self.nm._nmap_path = self._original_nmap_path
-                    logger.info("Nmap alternado dinámicamente a modo estándar (sin privilegios)")
+                    logger.info("Nmap alternado dinámicamente a modo estándar (ejecutando con los privilegios actuales del proceso)")
 
         logger.info(f"Iniciando escaneo profundo Nmap para {ip}...")
         try:
