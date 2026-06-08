@@ -84,3 +84,4 @@ Thumbs.db
 
 /scratch
 /data/Archivos
+!notebooks/IPS_IDS_Raspberry_PI.ipynb
