@@ -362,9 +362,9 @@ class FlowAggregator:
         if packet.haslayer(ICMP):
             icmp = packet[ICMP]
             info["proto"] = "ICMP"
-            info["icmp_seq"] = int(icmp.seq) if hasattr(icmp, 'seq') else 0
-            info["icmp_checksum"] = int(icmp.chksum) if icmp.chksum else 0
-            info["icmp_ts"] = int(icmp.ts_ori) if hasattr(icmp, 'ts_ori') else 0
+            info["icmp_seq"] = int(icmp.seq) if hasattr(icmp, 'seq') and icmp.seq is not None else 0
+            info["icmp_checksum"] = int(icmp.chksum) if hasattr(icmp, 'chksum') and icmp.chksum is not None else 0
+            info["icmp_ts"] = int(icmp.ts_ori) if hasattr(icmp, 'ts_ori') and icmp.ts_ori is not None else 0
             info["flow_key"] = f"ICMP:{ip.src}->{ip.dst}"
             return info
 

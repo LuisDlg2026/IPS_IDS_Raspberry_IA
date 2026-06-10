@@ -44,7 +44,6 @@ class DPIAnalyzer:
                 "details": {"type": "Query"}
             }
             
-        # 1.5 Analizar DHCP (Capa UDP 67/68) para extraer nombres de dispositivo
         # 1.5 Analizar DHCP (Capa UDP 67/68) para extraer nombres de dispositivo y datos de red
         elif packet.haslayer(DHCP):
             dhcp_details = self._parse_dhcp_details(packet[DHCP], packet)
