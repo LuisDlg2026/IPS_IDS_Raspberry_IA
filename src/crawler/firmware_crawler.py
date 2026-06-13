@@ -93,12 +93,34 @@ class FirmwareCrawler:
 
         vendor = self._guess_vendor(mac) if mac else "Unknown"
         hostname = self._resolve_hostname(ip)
+        os_guess = "Desconocido"
+
+        # Complementar fabricante y OS basado en hostname si el OUI es local/desconocido
+        if hostname:
+            h_lower = hostname.lower()
+            if "android" in h_lower or "galaxy" in h_lower or "pixel" in h_lower:
+                os_guess = "Android"
+                if vendor in ("Unknown", "Local / Random"):
+                    vendor = "Android Device"
+            elif any(x in h_lower for x in ["iphone", "ipad", "apple"]):
+                os_guess = "iOS"
+                if vendor in ("Unknown", "Local / Random"):
+                    vendor = "Apple Device"
+            elif "raspberry" in h_lower:
+                os_guess = "Linux (Raspberry Pi OS)"
+                if vendor in ("Unknown", "Local / Random"):
+                    vendor = "Raspberry Pi"
+            elif any(x in h_lower for x in ["windows", "desktop-", "laptop-"]) or h_lower.endswith("-pc"):
+                os_guess = "Windows"
+                if vendor in ("Unknown", "Local / Random"):
+                    vendor = "Microsoft Device"
 
         device_info = {
             "ip": ip,
             "mac": mac,
             "hostname": hostname,
             "vendor": vendor,
+            "os_guess": os_guess,
             "model": "Unknown",
             "current_firmware": "Unknown",
             "latest_firmware": "Unknown",

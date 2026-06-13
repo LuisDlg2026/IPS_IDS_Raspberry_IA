@@ -16,6 +16,34 @@ from src.capture.arp_spoofer import ArpSpoofer
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
+def get_default_gateway_ip() -> str:
+    """Detecta dinámicamente la IP de la puerta de enlace (Router) usando Scapy."""
+    try:
+        from scapy.all import conf
+        # conf.route.route("0.0.0.0") devuelve (interfaz, gateway, destino)
+        gw = conf.route.route("0.0.0.0")[1]
+        if gw and gw != "0.0.0.0":
+            return gw
+    except Exception as e:
+        logger.warning(f"Error detectando gateway con Scapy: {e}")
+        
+    try:
+        import struct
+        import socket
+        # Intentar leer desde /proc/net/route en sistemas Linux
+        if os.path.exists('/proc/net/route'):
+            with open('/proc/net/route', 'r') as f:
+                for line in f.readlines()[1:]:
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[1] == "00000000":
+                        gw_hex = parts[2]
+                        return socket.inet_ntoa(struct.pack("<L", int(gw_hex, 16)))
+    except Exception as e:
+        logger.warning(f"Error detectando gateway en /proc/net/route: {e}")
+        
+    return "192.168.1.1" # Fallback
+
+
 def start_backend():
     logger.info("Iniciando motor de captura de red e inferencia ML en segundo plano...")
     try:
@@ -44,11 +72,12 @@ def start_backend():
             crawler = FirmwareCrawler(db)
             alert_manager = DeviceAlertManager(db)
             
-            # 1. Obtener la interfaz de captura desde la config (o usar fallback 'eth0')
+            # 1. Obtener la interfaz de captura desde la base de datos (con fallback a la config/entorno)
             from src.config import CAPTURE_INTERFACE
             from scapy.arch import get_if_addr
             
-            iface_name = CAPTURE_INTERFACE if CAPTURE_INTERFACE else "eth0"
+            db_iface = db.get_config("capture_interface", None, "str")
+            iface_name = db_iface if db_iface else (CAPTURE_INTERFACE if CAPTURE_INTERFACE else "eth0")
             
             # 2. Deducir automáticamente la subred asumiendo formato /24
             try:
@@ -159,14 +188,17 @@ def start_backend():
                         device_info["risk_level"] = "low" if not device_info.get("needs_update") else "medium"
                         
                         # Escaneo profundo con Nmap (OS + puertos) de forma asíncrona o sincrona rápida
-                        nmap_result = nmap_scanner.scan_device(ip)
-                        if nmap_result:
-                            if nmap_result.get("os_guess"):
-                                device_info["os_guess"] = nmap_result["os_guess"]
-                            if nmap_result.get("open_ports"):
-                                device_info["open_ports"] = nmap_result["open_ports"]
-                            if nmap_result.get("hostname") and not device_info.get("hostname"):
-                                device_info["hostname"] = nmap_result["hostname"]
+                        if db.get_config("nmap_active_scan_enabled", True, "bool"):
+                            nmap_result = nmap_scanner.scan_device(ip)
+                            if nmap_result:
+                                if nmap_result.get("os_guess"):
+                                    device_info["os_guess"] = nmap_result["os_guess"]
+                                if nmap_result.get("vendor") and (not device_info.get("vendor") or device_info.get("vendor") in ("Unknown", "Unknown (Pasivo)", "Local / Random")):
+                                    device_info["vendor"] = nmap_result["vendor"]
+                                if nmap_result.get("open_ports"):
+                                    device_info["open_ports"] = nmap_result["open_ports"]
+                                if nmap_result.get("hostname") and not device_info.get("hostname"):
+                                    device_info["hostname"] = nmap_result["hostname"]
                         
                         # Guardar y generar alertas si aplican
                         alert_manager.evaluate_device(device_info)
@@ -178,8 +210,9 @@ def start_backend():
                 except Exception as e:
                     logger.error(f"Error en descubrimiento de red: {e}")
                 
-                # Repetir el escaneo cada 5 minutos
-                time.sleep(300)
+                # Repetir el escaneo según la configuración (en minutos)
+                arp_interval_min = db.get_config("arp_passive_scan_interval", 5, "int")
+                time.sleep(arp_interval_min * 60)
 
         discovery_thread = threading.Thread(target=network_discovery_loop, daemon=True)
         discovery_thread.start()
@@ -187,9 +220,11 @@ def start_backend():
         # 4.2 Bucle de Intercepción Activa (MITM)
         def spoofer_loop():
             from src.config import CAPTURE_INTERFACE
-            spoofer_iface = os.environ.get("IDS_CAPTURE_IFACE", CAPTURE_INTERFACE or "eth0")
+            db_iface = db.get_config("capture_interface", None, "str")
+            spoofer_iface = db_iface if db_iface else os.environ.get("IDS_CAPTURE_IFACE", CAPTURE_INTERFACE or "eth0")
             spoofer = ArpSpoofer(interface=spoofer_iface)
             last_target = None
+            last_gateway = None
             is_active = False
             
             while True:
@@ -198,14 +233,17 @@ def start_backend():
                     spoof_target = db.get_setting("mitm_target_ip")
                     spoof_enabled = db.get_setting("mitm_enabled") == "1"
                     
-                    # Si ha cambiado el objetivo o el estado, reiniciar
+                    # Resolver dinámicamente la IP del router (gateway)
+                    gateway_ip = db.get_setting("mitm_gateway_ip") or get_default_gateway_ip()
+                    
                     if spoof_enabled and spoof_target:
-                        if not is_active or spoof_target != last_target:
+                        if not is_active or spoof_target != last_target or gateway_ip != last_gateway:
                             if is_active:
                                 spoofer.stop()
-                            logger.info(f"Levantando Intercepción Activa (MITM) para {spoof_target}...")
-                            spoofer.start(target_ip=spoof_target)
+                            logger.info(f"Levantando Intercepción Activa (MITM) para {spoof_target} usando pasarela {gateway_ip}...")
+                            spoofer.start(target_ip=spoof_target, gateway_ip=gateway_ip)
                             last_target = spoof_target
+                            last_gateway = gateway_ip
                             is_active = True
                     else:
                         if is_active:
@@ -213,6 +251,7 @@ def start_backend():
                             spoofer.stop()
                             is_active = False
                             last_target = None
+                            last_gateway = None
                             
                 except Exception as e:
                     logger.error(f"Error en hilo Spoofer: {e}")
@@ -237,19 +276,87 @@ def start_backend():
         # 4.6 Callback para registros web (DPI)
         def on_web_traffic_detected(log_entry):
             if log_entry.get("protocol") == "DHCP":
-                # Es un evento de descubrimiento pasivo de Hostname, no lo metemos al log web
-                hostname = log_entry.get("domain_url")
+                # Es un evento de descubrimiento pasivo de Hostname
+                details = log_entry.get("details", {})
                 ip = log_entry.get("src_ip")
-                if ip and hostname:
-                    logger.info(f"Hostname interceptado vía DHCP: {ip} -> {hostname}")
-                    db.save_device({
-                        "ip": ip,
-                        "hostname": hostname,
-                        "vendor": "Unknown (Pasivo)" # Se sobreescribirá cuando pase el escáner ARP
-                    })
+                mac = details.get("mac")
+                hostname = details.get("hostname")
+                vendor_class = details.get("vendor_class")
+                
+                if not ip or ip == "0.0.0.0":
+                    return
+                    
+                os_guess = None
+                vendor = "Unknown (Pasivo)"
+                
+                # Reglas heurísticas de coincidencia para móviles Android
+                is_android = False
+                if hostname and any(x in hostname.lower() for x in ["android", "galaxy", "pixel", "redmi", "xiaomi", "huawei", "oneplus"]):
+                    is_android = True
+                if vendor_class and "android" in vendor_class.lower():
+                    is_android = True
+                    
+                if is_android:
+                    os_guess = "Android"
+                    vendor = "Android Device"
+                # Reglas heurísticas para dispositivos iOS/Apple
+                elif hostname and any(x in hostname.lower() for x in ["iphone", "ipad", "ipod", "apple"]):
+                    os_guess = "iOS"
+                    vendor = "Apple Device"
+                elif hostname and "raspberry" in hostname.lower():
+                    os_guess = "Linux (Raspberry Pi OS)"
+                    vendor = "Raspberry Pi"
+                elif hostname and (any(x in hostname.lower() for x in ["windows", "desktop-", "laptop-"]) or hostname.lower().endswith("-pc")):
+                    os_guess = "Windows"
+                    vendor = "Microsoft Device"
+                    
+                device_data = {
+                    "ip": ip,
+                    "mac": mac or "unknown",
+                    "hostname": hostname,
+                    "vendor": vendor,
+                    "is_online": 1
+                }
+                if os_guess:
+                    device_data["os_guess"] = os_guess
+                    
+                logger.info(f"Dispositivo interceptado vía DHCP: IP={ip}, MAC={mac}, Host={hostname}, OS={os_guess}")
+                db.save_device(device_data)
             else:
                 # Es tráfico real, lo guardamos en la tabla web
                 db.save_web_log(log_entry)
+                
+                # Extraer S.O. y fabricante del User-Agent en peticiones HTTP
+                if log_entry.get("protocol") == "HTTP":
+                    details = log_entry.get("details", {})
+                    user_agent = details.get("user_agent") if isinstance(details, dict) else None
+                    if user_agent:
+                        ua_lower = user_agent.lower()
+                        os_guess = None
+                        vendor = None
+                        
+                        if "android" in ua_lower:
+                            os_guess = "Android"
+                            vendor = "Android Device"
+                        elif any(x in ua_lower for x in ["iphone", "ipad", "ipod"]):
+                            os_guess = "iOS"
+                            vendor = "Apple Device"
+                        elif "macintosh" in ua_lower or "mac os x" in ua_lower:
+                            os_guess = "macOS"
+                            vendor = "Apple Device"
+                        elif "windows" in ua_lower:
+                            os_guess = "Windows"
+                            vendor = "Microsoft Device"
+                        elif "linux" in ua_lower:
+                            os_guess = "Linux"
+                            
+                        if os_guess:
+                            db.save_device({
+                                "ip": log_entry.get("src_ip"),
+                                "os_guess": os_guess,
+                                "vendor": vendor,
+                                "is_online": 1
+                            })
 
         # 5. Iniciar el detector pasándole los callbacks
         detector = IDSDetector(on_alert=on_alert_detected, on_flow=on_flow_detected)

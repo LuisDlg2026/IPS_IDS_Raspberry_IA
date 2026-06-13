@@ -25,10 +25,31 @@ DURACION_CAPTURA = 30  # segundos
 
 
 def main():
+    import os
+    
+    # Valores por defecto
+    duracion = DURACION_CAPTURA
+    from scapy.all import sniff, conf, IP, TCP, UDP, ICMP
+    iface = os.environ.get("IDS_CAPTURE_IFACE") or conf.iface
+    
+    # Procesar argumentos de línea de comandos
+    if len(sys.argv) > 1:
+        try:
+            duracion = int(sys.argv[1])
+            if len(sys.argv) > 2:
+                iface = sys.argv[2]
+        except ValueError:
+            iface = sys.argv[1]
+            if len(sys.argv) > 2:
+                try:
+                    duracion = int(sys.argv[2])
+                except ValueError:
+                    pass
+
     print()
     print("#" * 70)
     print("#  TEST DE CAPTURA REAL + ANALISIS ML")
-    print(f"#  Duracion: {DURACION_CAPTURA} segundos")
+    print(f"#  Duracion: {duracion} segundos")
     print("#" * 70)
 
     # ─── 1. Cargar motor de inferencia ──────────────────────
@@ -42,7 +63,6 @@ def main():
     # ─── 2. Preparar captura ────────────────────────────────
     print("\n[2/4] Preparando captura de red...")
     from src.capture.features_adapter import FlowAggregator
-    from scapy.all import sniff, conf, IP, TCP, UDP, ICMP
 
     aggregator = FlowAggregator()
     pkt_count = [0]
@@ -67,19 +87,18 @@ def main():
             print(f"    Capturados: {pkt_count[0]} paquetes, "
                   f"{len(aggregator._flows)} flujos...")
 
-    iface = conf.iface
     print(f"  Interfaz: {iface}")
-    print(f"  Duracion: {DURACION_CAPTURA}s")
+    print(f"  Duracion: {duracion}s")
 
     # ─── 3. Capturar ───────────────────────────────────────
-    print(f"\n[3/4] Capturando trafico real durante {DURACION_CAPTURA}s...")
+    print(f"\n[3/4] Capturando trafico real durante {duracion}s...")
     print("  (navega por internet para generar trafico)\n")
 
     try:
         sniff(
             iface=iface,
             prn=on_packet,
-            timeout=DURACION_CAPTURA,
+            timeout=duracion,
             store=False,
         )
     except PermissionError:

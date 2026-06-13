@@ -122,6 +122,12 @@ class Database:
                         value TEXT
                     );
 
+                    CREATE TABLE IF NOT EXISTS config (
+                        key TEXT PRIMARY KEY,
+                        type TEXT,
+                        value TEXT
+                    );
+
                     CREATE INDEX IF NOT EXISTS idx_alerts_timestamp ON alerts(timestamp);
                     CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
                     CREATE INDEX IF NOT EXISTS idx_alerts_attack ON alerts(attack_type);
@@ -131,6 +137,37 @@ class Database:
                     CREATE INDEX IF NOT EXISTS idx_web_timestamp ON web_traffic(timestamp);
                 """)
                 conn.commit()
+
+                # Inicializar configuraciones por defecto si la tabla está vacía
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM config")
+                if cursor.fetchone()[0] == 0:
+                    defaults = [
+                        ("active_model", "str", "random_forest"),
+                        ("capture_interface", "str", "eth0"),
+                        ("flow_aggregation_window", "int", "15"),
+                        ("max_alerts_buffer_size", "int", "1000"),
+                        ("min_confidence_general", "float", "0.50"),
+                        ("min_confidence_ddos", "float", "0.60"),
+                        ("min_confidence_mitm", "float", "0.50"),
+                        ("min_confidence_scan", "float", "0.40"),
+                        ("severity_threshold_info_to_warn", "float", "0.40"),
+                        ("severity_threshold_warn_to_crit", "float", "0.75"),
+                        ("arp_passive_scan_interval", "int", "5"),
+                        ("nmap_active_scan_enabled", "bool", "True"),
+                        ("nmap_use_sudo", "bool", "False"),
+                        ("whitelist_ips", "str", "192.168.1.10, 192.168.1.99"),
+                        ("active_response_target_ip", "str", ""),
+                        ("active_response_rules_applied", "bool", "False"),
+                        ("active_response_logs", "str", "[]")
+                    ]
+                    cursor.executemany(
+                        "INSERT OR IGNORE INTO config (key, type, value) VALUES (?, ?, ?)",
+                        defaults
+                    )
+                    conn.commit()
+                    logger.info("Configuraciones por defecto inicializadas en la tabla config")
+
                 logger.info("Tablas SQLite creadas/verificadas")
             finally:
                 conn.close()
@@ -239,6 +276,131 @@ class Database:
             finally:
                 conn.close()
 
+    def get_alerts_paged(self, limit: int = 50, offset: int = 0,
+                         severities: List[str] = None, attack_type: str = None,
+                         src_ip: str = None, since: str = None, until: str = None) -> List[Dict]:
+        """Obtiene alertas filtradas y paginadas desde SQLite."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                query = "SELECT * FROM alerts WHERE 1=1"
+                params = []
+
+                if severities:
+                    placeholders = ",".join(["?"] * len(severities))
+                    query += f" AND severity IN ({placeholders})"
+                    params.extend(severities)
+
+                if attack_type:
+                    query += " AND attack_type = ?"
+                    params.append(attack_type)
+
+                if src_ip:
+                    query += " AND (src_ip LIKE ? OR dst_ip LIKE ?)"
+                    params.extend([f"%{src_ip}%", f"%{src_ip}%"])
+
+                if since:
+                    query += " AND timestamp >= ?"
+                    params.append(since)
+
+                if until:
+                    query += " AND timestamp <= ?"
+                    params.append(until)
+
+                query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+
+                rows = conn.execute(query, params).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
+    def get_alerts_summary_filtered(self, severities: List[str] = None, attack_type: str = None,
+                                    src_ip: str = None, since: str = None, until: str = None) -> Dict:
+        """Obtiene métricas resumidas para un conjunto de filtros activos (Total, % Críticos, IP más frecuente)."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                base_query = "FROM alerts WHERE 1=1"
+                params = []
+
+                if severities:
+                    placeholders = ",".join(["?"] * len(severities))
+                    base_query += f" AND severity IN ({placeholders})"
+                    params.extend(severities)
+
+                if attack_type:
+                    base_query += " AND attack_type = ?"
+                    params.append(attack_type)
+
+                if src_ip:
+                    base_query += " AND (src_ip LIKE ? OR dst_ip LIKE ?)"
+                    params.extend([f"%{src_ip}%", f"%{src_ip}%"])
+
+                if since:
+                    base_query += " AND timestamp >= ?"
+                    params.append(since)
+
+                if until:
+                    base_query += " AND timestamp <= ?"
+                    params.append(until)
+
+                # Query 1: Total y Críticos
+                counts_query = f"SELECT COUNT(*), SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) {base_query}"
+                row_counts = conn.execute(counts_query, params).fetchone()
+                total = row_counts[0] if row_counts else 0
+                critical_sum = row_counts[1] if row_counts and row_counts[1] is not None else 0
+                pct_critical = (critical_sum / total * 100.0) if total > 0 else 0.0
+
+                # Query 2: IP origen más frecuente
+                ip_query = f"SELECT src_ip, COUNT(*) as cnt {base_query} AND src_ip IS NOT NULL GROUP BY src_ip ORDER BY cnt DESC LIMIT 1"
+                row_ip = conn.execute(ip_query, params).fetchone()
+                most_frequent_ip = row_ip[0] if row_ip else "N/A"
+
+                return {
+                    "total": total,
+                    "pct_critical": pct_critical,
+                    "most_frequent_ip": most_frequent_ip
+                }
+            finally:
+                conn.close()
+
+    def get_alerts_filtered(self, severities: List[str] = None, attack_type: str = None,
+                            src_ip: str = None, since: str = None, until: str = None) -> List[Dict]:
+        """Obtiene todas las alertas filtradas sin paginación (para exportación CSV)."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                query = "SELECT * FROM alerts WHERE 1=1"
+                params = []
+
+                if severities:
+                    placeholders = ",".join(["?"] * len(severities))
+                    query += f" AND severity IN ({placeholders})"
+                    params.extend(severities)
+
+                if attack_type:
+                    query += " AND attack_type = ?"
+                    params.append(attack_type)
+
+                if src_ip:
+                    query += " AND (src_ip LIKE ? OR dst_ip LIKE ?)"
+                    params.extend([f"%{src_ip}%", f"%{src_ip}%"])
+
+                if since:
+                    query += " AND timestamp >= ?"
+                    params.append(since)
+
+                if until:
+                    query += " AND timestamp <= ?"
+                    params.append(until)
+
+                query += " ORDER BY timestamp DESC"
+                rows = conn.execute(query, params).fetchall()
+                return [dict(r) for r in rows]
+            finally:
+                conn.close()
+
     # ─── SETTINGS ───────────────────────────────────────────
 
     def get_setting(self, key: str, default=None) -> str:
@@ -258,6 +420,46 @@ class Database:
             try:
                 conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
                 conn.commit()
+            finally:
+                conn.close()
+
+    def get_config(self, key: str, default=None, val_type: str = 'str'):
+        """Obtiene un valor de la tabla config, casteado a su tipo."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                row = conn.execute("SELECT value, type FROM config WHERE key = ?", (key,)).fetchone()
+                if not row:
+                    return default
+                val_str = row["value"]
+                v_type = row["type"] or val_type
+                
+                if v_type == 'int':
+                    return int(val_str)
+                elif v_type == 'float':
+                    return float(val_str)
+                elif v_type == 'bool':
+                    return val_str.lower() in ('true', '1', 'yes')
+                else:
+                    return val_str
+            except Exception as e:
+                logger.error(f"Error al obtener config {key}: {e}")
+                return default
+            finally:
+                conn.close()
+
+    def set_config(self, key: str, value, val_type: str = 'str'):
+        """Guarda un valor en la tabla config."""
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO config (key, type, value) VALUES (?, ?, ?)",
+                    (key, val_type, str(value))
+                )
+                conn.commit()
+            except Exception as e:
+                logger.error(f"Error al guardar config {key}: {e}")
             finally:
                 conn.close()
 
@@ -524,6 +726,26 @@ class Database:
                 conn.commit()
                 conn.execute("VACUUM")
                 logger.info(f"Limpieza: eliminados registros > {days} días")
+            finally:
+                conn.close()
+
+    def clear_all_data(self):
+        """Elimina todos los datos operativos de las tablas de la base de datos.
+        
+        Vacíe las tablas: alerts, devices, network_stats, events y web_traffic.
+        Mantiene intactas las tablas de configuración 'config' y 'settings'.
+        """
+        with self._lock:
+            conn = self._get_conn()
+            try:
+                for table in ["alerts", "devices", "network_stats", "events", "web_traffic"]:
+                    conn.execute(f"DELETE FROM {table}")
+                conn.commit()
+                conn.execute("VACUUM")
+                logger.info("Todos los datos operativos han sido eliminados de la base de datos.")
+            except Exception as e:
+                logger.error(f"Error al vaciar la base de datos: {e}")
+                raise e
             finally:
                 conn.close()
 

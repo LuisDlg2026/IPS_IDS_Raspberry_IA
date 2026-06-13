@@ -86,9 +86,16 @@ class IDSDetector:
             on_flow: Callback cuando se procesa un flujo normal (para descubrimiento pasivo)
         """
         from src.config import FLOW_WINDOW_SECONDS, CONFIDENCE_THRESHOLD
+        from src.utils.storage import Database
 
-        self._window_seconds = window_seconds or FLOW_WINDOW_SECONDS
-        self._confidence_threshold = confidence_threshold or CONFIDENCE_THRESHOLD
+        self._db = Database()
+        db_iface = self._db.get_config("capture_interface", None, "str")
+        db_window = self._db.get_config("flow_aggregation_window", None, "int")
+        db_confidence = self._db.get_config("min_confidence_general", None, "float")
+        db_model = self._db.get_config("active_model", None, "str")
+
+        self._window_seconds = window_seconds or db_window or FLOW_WINDOW_SECONDS
+        self._confidence_threshold = confidence_threshold or db_confidence or CONFIDENCE_THRESHOLD
         self._on_alert_callback = on_alert
         self._on_flow_callback = on_flow
 
@@ -98,12 +105,12 @@ class IDSDetector:
         from src.capture.features_adapter import FlowAggregator
         from src.capture.dpi_analyzer import DPIAnalyzer
 
-        self._engine = InferenceEngine(model_name=model_name)
+        self._engine = InferenceEngine(model_name=model_name or db_model)
         self._aggregator = FlowAggregator()
         self._dpi_analyzer = DPIAnalyzer(on_web_traffic=None) # Se inyectará el callback luego si es necesario
         
         self._capture = PacketCapture(
-            interface=interface,
+            interface=interface or db_iface,
             packet_callback=self._on_packet
         )
 
@@ -138,6 +145,12 @@ class IDSDetector:
 
     @property
     def stats(self) -> dict:
+        # Cargar dinámicamente si el modelo cambió en DB
+        db_model = self._db.get_config("active_model", None, "str")
+        if db_model and self._engine.model_name != db_model:
+            from src.ml.inference import get_engine
+            self._engine = get_engine(db_model)
+            
         stats = {**self._stats, **self._engine.stats, **self._capture.stats}
         if stats.get("start_time"):
             stats["uptime_seconds"] = round(time.time() - stats["start_time"], 1)
@@ -253,6 +266,21 @@ class IDSDetector:
         self._stats["windows_processed"] += 1
         self._stats["flows_analyzed"] += len(flows)
 
+        # Cargar valores dinámicos de la DB para la ventana actual
+        db_model = self._db.get_config("active_model", None, "str")
+        if db_model and self._engine.model_name != db_model:
+            from src.ml.inference import get_engine
+            logger.info(f"🔄 Cambio de modelo detectado en caliente: de {self._engine.model_name} a {db_model}. Cargando...")
+            self._engine = get_engine(db_model)
+
+        whitelist_str = self._db.get_config("whitelist_ips", "", "str")
+        whitelist = [ip.strip() for ip in whitelist_str.split(",") if ip.strip()]
+        
+        db_conf_general = self._db.get_config("min_confidence_general", 0.50, "float")
+        db_conf_ddos = self._db.get_config("min_confidence_ddos", 0.60, "float")
+        db_conf_mitm = self._db.get_config("min_confidence_mitm", 0.50, "float")
+        db_conf_scan = self._db.get_config("min_confidence_scan", 0.40, "float")
+
         n_attacks = 0
 
         for flow_data in flows:
@@ -260,6 +288,10 @@ class IDSDetector:
             flow_key = flow_data["flow_key"]
             src_ip = flow_data["src_ip"]
             dst_ip = flow_data["dst_ip"]
+
+            # Comprobar lista blanca (whitelist)
+            if src_ip in whitelist:
+                continue
 
             # Descubrimiento pasivo
             if self._on_flow_callback:
@@ -270,8 +302,19 @@ class IDSDetector:
 
             # Predicción (única inferencia por flujo)
             result = self._engine.predict(features)
+            
+            # Determinar umbral de confianza específico
+            attack_type = result["prediction"]
+            threshold = db_conf_general
+            
+            if "DDoS" in attack_type:
+                threshold = db_conf_ddos
+            elif attack_type in ("MITM", "DNS_Spoofing"):
+                threshold = db_conf_mitm
+            elif attack_type in ("Port_Scanning", "Fingerprinting", "Vulnerability_scanner"):
+                threshold = db_conf_scan
 
-            if result["is_attack"] and result["confidence"] >= self._confidence_threshold:
+            if result["is_attack"] and result["confidence"] >= threshold:
                 n_attacks += 1
                 self._stats["attacks_detected"] += 1
 

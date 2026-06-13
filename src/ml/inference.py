@@ -13,10 +13,15 @@ Uso:
 
 import time
 import logging
+import warnings
 import numpy as np
 import joblib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+# Silenciar las advertencias de nombres de columnas de scikit-learn causadas por pasar numpy arrays en lugar de DataFrames
+warnings.filterwarnings("ignore", category=UserWarning)
+
 
 logger = logging.getLogger(__name__)
 
@@ -144,42 +149,28 @@ class InferenceEngine:
                 except (ValueError, TypeError):
                     vector_52[i] = 0.0
         
-        # 2. Escalar el vector de 52 elementos. Convertimos a DataFrame para que scikit-learn no pite sobre nombres faltantes.
-        import pandas as pd
-        X_df_52 = pd.DataFrame([vector_52], columns=self._scaler_features)
+        # 2. Escalar el vector de 52 elementos usando numpy directamente (evitamos la costosa creación de DataFrames)
+        X_scaled_52 = self._scaler.transform(vector_52.reshape(1, -1))
         
-        # Suprimimos los warnings a nivel global para que no inunden el log si el entorno no tiene pandas estricto
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            X_scaled_52 = self._scaler.transform(X_df_52)
-        
-        # 3. Extraer solo las 36 features seleccionadas del array escalado
-        X_array = np.zeros((1, len(self._selected_features)), dtype=np.float64)
-        for i, idx in enumerate(self._feature_indices):
-            X_array[0, i] = X_scaled_52[0, idx]
-
-        # Convertimos también a DataFrame para evitar el UserWarning del modelo en predict() y predict_proba()
-        X = pd.DataFrame(X_array, columns=self._selected_features)
+        # 3. Extraer solo las 36 features seleccionadas con indexación vectorizada de numpy
+        X_array = X_scaled_52[0, self._feature_indices].reshape(1, -1)
 
         # 4. Predecir
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            y_pred = self._model.predict(X)[0]
-            prediction = self._label_encoder.inverse_transform([y_pred])[0]
-            
-            # Probabilidades (si el modelo las soporta)
-            if hasattr(self._model, 'predict_proba'):
-                proba = self._model.predict_proba(X)[0]
-                confidence = float(np.max(proba))
-                probabilities = {
-                    cls: round(float(p), 4)
-                    for cls, p in zip(self._classes, proba)
-                }
-            else:
-                # Modelo sin probabilidades: confianza máxima, sin desglose
-                confidence = 1.0
-                probabilities = {}
+        y_pred = self._model.predict(X_array)[0]
+        prediction = self._label_encoder.inverse_transform([y_pred])[0]
+        
+        # Probabilidades (si el modelo las soporta)
+        if hasattr(self._model, 'predict_proba'):
+            proba = self._model.predict_proba(X_array)[0]
+            confidence = float(np.max(proba))
+            probabilities = {
+                cls: round(float(p), 4)
+                for cls, p in zip(self._classes, proba)
+            }
+        else:
+            # Modelo sin probabilidades: confianza máxima, sin desglose
+            confidence = 1.0
+            probabilities = {}
 
         inference_time = time.perf_counter() - t_start
         inference_ms = inference_time * 1000

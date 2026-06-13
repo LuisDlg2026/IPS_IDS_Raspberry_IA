@@ -76,9 +76,12 @@ Thumbs.db
 *.temp
 *~
 
-# Notas personales (opcional)
+
 # /notas/
 
 # Archivos sí versionados
 /archivos/
 
+/scratch
+/data/Archivos
+!notebooks/IPS_IDS_Raspberry_PI.ipynb
