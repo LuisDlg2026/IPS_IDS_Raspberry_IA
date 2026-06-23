@@ -16,7 +16,7 @@
 🧑‍🏫 <strong>Tutor del trabajo</strong>
 <p>Sergio Ruiz Villafranca</p>
 <p></p>
-<p>Contacto:</></p>
+<p>Contacto:</strong><a href="mailto:sergio.rvillafranca@upm.es">sergio.rvillafranca@upm.es </a</p>
 
 Este repositorio contiene el código fuente (`src`) y la documentación (`docs`) para el Trabajo de Fin de Máster (TFM) centrado en la creación de un Sistema de Detección y Prevención de Intrusos (IDS/IPS) ligero y eficiente, potenciado por Inteligencia Artificial y diseñado para asegurar **entornos domésticos y PyMEs (Pequeñas y Medianas Empresas)**.
 
