@@ -197,8 +197,6 @@ Bajo las siguientes condiciones:
 
 Para más detalles, consulta el archivo [LICENSE](file:///c:/Users/Luis/Documents/GitHub/IPS_IDS_Raspberry_IA/LICENSE) en este repositorio.
 
-## ✍️ Autor
-
 <h2>📬 <strong>Contacto</strong></h2
 
 <ul>
