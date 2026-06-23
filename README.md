@@ -186,7 +186,16 @@ Este es un proyecto académico individual. Sin embargo, sugerencias y comentario
 
 ## 📄 Licencia
 
+Este proyecto está bajo la licencia **Creative Commons Atribución 4.0 Internacional (CC BY 4.0)**.
 
+Esto significa que eres libre de:
+* **Compartir:** Copiar y redistribuir el material en cualquier medio o formato.
+* **Adaptar:** Mezclar, transformar y construir a partir del material para cualquier propósito, incluso comercialmente.
+
+Bajo las siguientes condiciones:
+* **Atribución:** Debes dar el crédito correspondiente de manera adecuada (mencionando al autor original y el título del proyecto), proporcionar un enlace a la licencia e indicar si se han realizado cambios. Puedes hacerlo de cualquier manera razonable, pero no de una manera que sugiera que el licenciante te respalda a ti o al uso que haces del material.
+
+Para más detalles, consulta el archivo [LICENSE](file:///c:/Users/Luis/Documents/GitHub/IPS_IDS_Raspberry_IA/LICENSE) en este repositorio.
 
 ## ✍️ Autor
 
